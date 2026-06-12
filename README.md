@@ -28,6 +28,7 @@ cp -r skills/skills/<name> ~/.claude/skills/        # user-level
 | Skill | What |
 |---|---|
 | [epic-autopilot](skills/epic-autopilot/SKILL.md) | Drive a multi-issue epic to completion, one clean issue per iteration, multi-agent-safe, surviving context limits via a rolling handoff file. |
+| [grill-yourself](skills/grill-yourself/SKILL.md) | Self-interrogation resolving technical forks using YOUR principles doc as adjudicator. Principles are user-defined per repo (`docs/PRINCIPLES.md` or path declared in CLAUDE.md) — never bundled. `adversarial-debate` optional (inline steelman fallback). |
 
 ### epic-autopilot extras
 - `skills/epic-autopilot/templates/HANDOFF-TEMPLATE.md` — copy per epic as the rolling handoff
