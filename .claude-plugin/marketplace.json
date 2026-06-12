@@ -1,0 +1,11 @@
+{
+  "name": "angeloneacsu",
+  "owner": { "name": "Angelo Neacsu" },
+  "plugins": [
+    {
+      "name": "angelo-skills",
+      "source": "./",
+      "description": "Agent skills pack: epic-autopilot (multi-agent epic loop with rolling handoff) + future skills"
+    }
+  ]
+}
