@@ -42,6 +42,11 @@ Soft dependency: the [mattpocock-skills](https://github.com/mattpocock/skills) C
 `resolving-merge-conflicts`, `to-tickets`; without it those steps degrade to the repo's own
 conventions. Place in Matt's flow: `grill-with-docs → to-spec → to-tickets → epic-autopilot(-subagents)`.
 
+**Personalize by wrapping, not forking:** keep these generic; put repo values in the CLAUDE.md
+`## Epic-autopilot parameters` block and your house conventions in a thin wrapper skill that invokes
+`epic-autopilot` / `epic-autopilot-subagents` with them (e.g. a `<org>-epic-autopilot` that fixes the
+tracker, the reviewer model and the forward-command wording).
+
 Requires per target repo: a principles doc (fork adjudication authority) referenced from
 CLAUDE.md. Note: agent-local memory does not travel between machines — durable facts go
 in the handoff or the issue tracker.
