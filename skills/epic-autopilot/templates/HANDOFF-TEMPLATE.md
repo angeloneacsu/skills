@@ -1,3 +1,7 @@
+<!-- When the tracker supports notes on the epic (e.g. beads), the sections below live in the
+epic's STATE block (replace the marked block each iteration) and the handoff FILE shrinks to the
+pointer layer written by the `follow-up` skill. Use this full template only when the tracker
+can't hold the state. -->
 # Rolling handoff — epic <EPIC-ID> (<one-line theme>) — autopilot
 
 **Loop:** <protocol: stop-after-each-bead | self-compact at ~N tokens>. One clean
@@ -5,7 +9,7 @@ issue per iteration, full workflow to pushed-on-<main>. Forks adjudicated via
 <principles doc path>.
 
 **Suggested skills for resuming agent:** epic-autopilot, <fork-adjudication skill>,
-<handoff skill>.
+mattpocock-skills:tdd / code-review / diagnosing-bugs, follow-up.
 
 **Main tip:** `<commit>` on origin/<main>.
 **Progress:** <n>/<total> children closed. <Concurrency notes: which worktrees other

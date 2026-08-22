@@ -27,13 +27,20 @@ cp -r skills/skills/<name> ~/.claude/skills/        # user-level
 
 | Skill | What |
 |---|---|
-| [epic-autopilot](skills/epic-autopilot/SKILL.md) | Drive a multi-issue epic to completion, one clean issue per iteration, multi-agent-safe, surviving context limits via a rolling handoff file. |
+| [epic-autopilot](skills/epic-autopilot/SKILL.md) | Drive a multi-issue epic to completion, one clean issue per iteration, multi-agent-safe, surviving context limits via the epic's STATE block + a `follow-up` pointer note. Composes `mattpocock-skills` (tdd, code-review, diagnosing-bugs, resolving-merge-conflicts, to-tickets) inside each iteration. |
+| [epic-autopilot-subagents](skills/epic-autopilot-subagents/SKILL.md) | Same loop as orchestrator only: builder sub-agent (model per issue: Opus default / Sonnet / auto) + reviewer sub-agent on Fable running `mattpocock-skills:code-review`. You keep forks, landing, tracker state. |
+| [follow-up](skills/follow-up/SKILL.md) | Pointer-only follow-up note (≤ 15 lines): next issue id, show commands, scope, skills. State stays on the tracker; the note just sends the next agent there. |
 | [grill-yourself](skills/grill-yourself/SKILL.md) | Self-interrogation resolving technical forks using YOUR principles doc as adjudicator. Principles are user-defined per repo (`docs/PRINCIPLES.md` or path declared in CLAUDE.md) — never bundled. `adversarial-debate` optional (inline steelman fallback). |
 
 ### epic-autopilot extras
 - `skills/epic-autopilot/templates/HANDOFF-TEMPLATE.md` — copy per epic as the rolling handoff
 - `skills/epic-autopilot/docs/CLAUDE-md-block.md` — project-parameter block + concurrency-safe
   merge recipe; paste into each target repo's CLAUDE.md and fill the `<slots>`
+
+Soft dependency: the [mattpocock-skills](https://github.com/mattpocock/skills) Claude Code plugin
+(`/plugin install mattpocock-skills`) — the loops call its `tdd`, `code-review`, `diagnosing-bugs`,
+`resolving-merge-conflicts`, `to-tickets`; without it those steps degrade to the repo's own
+conventions. Place in Matt's flow: `grill-with-docs → to-spec → to-tickets → epic-autopilot(-subagents)`.
 
 Requires per target repo: a principles doc (fork adjudication authority) referenced from
 CLAUDE.md. Note: agent-local memory does not travel between machines — durable facts go
