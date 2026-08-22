@@ -1,15 +1,19 @@
 ---
 name: epic-autopilot-subagents
-description: Use when told to drive a multi-issue epic to completion unattended AND to delegate each issue's implementation to a builder sub-agent (reviewer always Fable) instead of coding it in-session — the orchestrated variant of epic-autopilot. Builder model configurable per issue (default Opus; pin Sonnet via a model:sonnet label or builder=sonnet arg; builder=auto weighs it by issue heaviness). Triggers: "epic-autopilot with sub-agents", "drive the epic but delegate the issues", preserving orchestrator context across a long epic.
+description: Use when told to drive a multi-issue epic to completion unattended AND to delegate each issue's implementation to a builder sub-agent (reviewer always Fable) instead of coding it in-session — the orchestrated variant of epic-autopilot. One sub-agent = one job (build, review, or fix) — findings never continue an exhausted agent; the orchestrator opens a fresh fixer with a brief. Builder model configurable per issue (default Opus; pin Sonnet via a model:sonnet label or builder=sonnet arg; builder=auto weighs it by issue heaviness). Triggers: "epic-autopilot with sub-agents", "drive the epic but delegate the issues", preserving orchestrator context across a long epic.
 argument-hint: "<epic-id> [handoff-path] [builder=opus|sonnet|auto] [skills to inject into builder prompts]"
 ---
 
 # epic-autopilot-subagents
 
 The autonomous epic loop **as orchestrator only**: one clean issue per iteration, unattended,
-but **you never write feature code**. Each issue is implemented by a **builder sub-agent** and
-checked by a **reviewer sub-agent on Fable** (`model: "fable"`), both dispatched via the Agent
-tool from self-sufficient dispatch prompts you assemble. You keep everything that needs
+but **you never write feature code**. Each issue is implemented by a **builder sub-agent**,
+checked by a **reviewer sub-agent on Fable** (`model: "fable"`), and repaired — when the review
+asks for it — by a **fresh fixer sub-agent**; all dispatched via the Agent tool from
+self-sufficient dispatch prompts you assemble. **One sub-agent, one job, then it returns and is
+done.** A sub-agent's token budget is spent by the job it was opened for; continuing it via
+SendMessage to "also apply the findings" runs it dry mid-fix. Context travels in the brief you
+write, never in a kept-alive agent. You keep everything that needs
 judgement or cross-issue state: issue selection, fork adjudication, landing on main, tracker
 state, the epic's STATE block, self-compaction.
 
@@ -24,9 +28,9 @@ what the reviewer does; you are the loop in between.
 
 ## Division of labor (non-negotiable)
 
-| Orchestrator (you, session model) | Builder (sub-agent — model per policy) | Reviewer (Fable sub-agent) |
+| Orchestrator (you, session model) | Builder / Fixer (sub-agent — model per policy, one job each) | Reviewer (Fable sub-agent, fresh each time) |
 |---|---|---|
-| pick next issue; resolve the builder model; resolve ALL forks via grill-yourself + the principles doc BEFORE dispatch; create worktree + claim; assemble dispatch prompt; adjudicate BLOCKED reports; author repo-mandated close artifacts (CLAUDE.md slot, e.g. a product-narrative doc); land concurrency-safe; close/export in tracker; STATE + `follow-up`; self-compact | implement the decided design in the worktree, test-first (`mattpocock-skills:tdd` at the seams named in the Contract); run gates; commit on the feature branch; return the Report Contract | independent two-axis verdict via `mattpocock-skills:code-review` (Standards vs repo standards + smell baseline; Spec vs the issue's acceptance) plus gotchas; findings go back to the builder |
+| pick next issue; resolve the builder model; resolve ALL forks via grill-yourself + the principles doc BEFORE dispatch; create worktree + claim; assemble every dispatch prompt (build brief, fix brief); adjudicate BLOCKED reports and decide whether to open a fixer / a new builder / take over; author repo-mandated close artifacts (CLAUDE.md slot); land concurrency-safe; close/export in tracker; STATE + `follow-up`; self-compact | **Builder:** implement the decided design in the worktree, test-first (`mattpocock-skills:tdd` at the seams named in the Contract); run gates; commit on the feature branch; return the Report Contract and stop. **Fixer (fresh agent):** apply exactly the findings in its brief on the same branch; re-run the named gates; commit; return the Report Contract and stop | independent two-axis verdict via `mattpocock-skills:code-review` (Standards vs repo standards + smell baseline; Spec vs the issue's acceptance) plus gotchas; returns findings to the **orchestrator** (never to the builder) and stops |
 
 **Design judgement stays with you.** The builder implements decisions; it never makes them. A
 fork discovered mid-build comes back as BLOCKED and you adjudicate. Never delegate the merge.
@@ -46,20 +50,30 @@ fork discovered mid-build comes back as BLOCKED and you adjudicate. Never delega
    `model: "<resolved>"`, prompt built from the Dispatch Prompt Recipe — every section
    filled. A section you cannot fill means you are not ready to dispatch; back to step 2.
 5. **Judge the report.**
-   - `BLOCKED` → adjudicate (grill-yourself if it's a fork), then **continue the same agent
-     via SendMessage** with the decision — don't spawn fresh and lose its context. BLOCKED on
-     a *bug* (gate red, premise intact) → send the builder into
+   **One sub-agent, one job.** Every report ends that agent. You never SendMessage a finished
+   sub-agent to continue; you read its report, decide, and open a fresh one with a brief.
+   - `BLOCKED` → the builder has stopped. Adjudicate (grill-yourself if it's a fork), fold the
+     decision into the Contract, and dispatch a **new builder** (the branch keeps whatever the
+     first one committed; its Guard + `git log` tell the new one where it stands). BLOCKED on a
+     *bug* (gate red, premise intact) → the new brief's Mission is the bug: run
      **`mattpocock-skills:diagnosing-bugs`** (tight red loop, fix, regression test) before any
      escalation count starts.
-   - `DONE` → dispatch the **reviewer** (`model: "fable"`): worktree path, fixed point
+   - `DONE` → dispatch a **reviewer** (`model: "fable"`, fresh): worktree path, fixed point
      `origin/<main>`, the issue id as spec (fetched via the tracker) with acceptance criteria
      verbatim, the gotchas; ask it to run **`mattpocock-skills:code-review`** — Standards and
      Spec reported separately, no reranking across axes, hard violations vs judgement calls —
-     plus spot-re-running the cheapest gate. (`code-review` spawns its own two sub-agents;
-     that is why it lives with the reviewer/orchestrator, never inside the builder.) Findings
-     → back to the builder via SendMessage.
-   - Still failing after builder→reviewer→builder: no third dispatch — build it yourself
-     in-session or escalate the builder's model; don't ping-pong.
+     plus spot-re-running the cheapest gate, and to **return the findings to you**.
+     (`code-review` spawns its own two sub-agents; that is why it lives with the reviewer /
+     orchestrator, never inside the builder.)
+   - Findings → **you triage them** (drop judgement calls you disagree with, keep hard
+     violations and Spec gaps), then dispatch a **fixer** — a fresh sub-agent (builder-model
+     policy) with a **fix brief** (recipe below): the kept findings verbatim, nothing else to
+     build. Then a fresh reviewer again. Findings with no fix needed → proceed to land.
+   - Bounce limit: build → review → fix → review, then **no third fixer** — build the remainder
+     yourself in-session or escalate the builder's model; don't ping-pong.
+   - A sub-agent that dies on a terminal error (context/tokens exhausted, API error) returns
+     null: treat it like BLOCKED — read the branch (`git log`/`git diff origin/<main>`), write a
+     brief from what actually landed, open a fresh agent.
 6. **Land (orchestrator, concurrency-safe).** First author any repo-mandated close artifact
    and commit it on the feature branch so it merges atomically. Re-run the fastest gate
    yourself in the worktree (the report's verbatim gate tail is evidence, not proof). Then the
@@ -121,6 +135,13 @@ fine; the rule is about session context).
    mismatch or an undecided fork: stop and report BLOCKED with the exact question.
 7. **Report format** — the Report Contract below, pasted verbatim.
 
+**Fix brief** (for a fixer): the same seven sections, with **Mission** = "apply these review
+findings on branch `<issue-id>`, nothing else", **Contract** = the kept findings verbatim (file /
+hunk / what to change) + the original acceptance criteria for reference, **Verify recipe** = only
+the gates the findings touch plus the cheapest full gate, **Boundaries** += "touch only what the
+findings name; a finding that needs a design decision → STOP, report BLOCKED". Written like a
+`follow-up` note: short, pointer-based, self-sufficient — the fixer has no memory of the build.
+
 ## Report Contract (the builder's final message IS this)
 
 ```
@@ -141,6 +162,8 @@ BLOCKED-ON: <only when BLOCKED: the exact question or missing decision>
 | `git add -A` swept build artifacts / symlinks | Boundaries: stage explicit paths only |
 | gate failure paraphrased into "tests mostly pass" | Report Contract: verbatim gate tail required |
 | endless builder↔reviewer ping-pong | two-bounce limit, then orchestrator takes over |
+| builder kept alive via SendMessage to apply review findings → ran out of tokens mid-fix, half-applied diff | one sub-agent, one job: the builder ends at its report; findings go to the orchestrator, which opens a fresh fixer with a fix brief |
+| sub-agent died on exhausted context, nothing returned | treat as BLOCKED: read the branch, brief from what landed, fresh agent |
 | mandated close artifact forgotten → repo hygiene gate fails at session close | step 2 flags the label; step 6 lands the artifact on the branch; step 7 cites it in the close-reason |
 
 ## Oversized-issue rule — annotate & defer, don't drain the session
