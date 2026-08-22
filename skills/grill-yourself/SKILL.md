@@ -1,14 +1,14 @@
 ---
 name: grill-yourself
-description: Self-interrogation that resolves the technical forks in a plan YOU must decide, using the user's documented engineering principles/mantras as the adjudicator. Use when the user delegates a technical decision ("you decide", "decide singur", "the technical part is yours", "grill yourself"), or when a design session hits a technical branch the user can't adjudicate.
+description: Self-interrogation that resolves the technical forks in a plan YOU must decide, using the user's documented engineering principles/mantras as the adjudicator — the complement to `mattpocock-skills:grill-with-docs` (where the user grills you). Use when the user delegates a technical decision ("you decide", "decide singur", "the technical part is yours", "grill yourself"), or when a design / grill-with-docs session hits a technical branch the user can't adjudicate.
 ---
 
 <what-to-do>
 
 You play BOTH roles: interrogator and respondent. Walk down every branch of the design tree
 and resolve each fork **yourself**, using the user's principles as the decision authority — do
-not ask the user to adjudicate technical merit. You grill yourself; the principles own the
-answers.
+not ask the user to adjudicate technical merit. The complement of `mattpocock-skills:grill-with-docs`:
+there the user grills you and owns the answers; here you grill yourself and the principles own them.
 
 Escalate to the user **only** when a fork is genuinely a product/business call, or when two
 principles irreconcilably conflict. Otherwise: decide, cite the principle, move on.
@@ -33,6 +33,8 @@ user-defined, per project/company — never bundled with this skill.** Resolutio
 Never duplicate the principle text into this session or the plan — reference `PRINCIPLES §N`.
 If no documented principles exist, **stop and say so**: ask the user to supply or confirm the
 authority (a principles doc, or ad-hoc rules for this session). Do not invent house principles.
+With the mattpocock-skills plugin installed, `mattpocock-skills:grill-with-docs` is how those
+principles get established with the user in the first place.
 
 ## 1. The self-grill loop — per open decision
 
@@ -77,6 +79,9 @@ repeal it. When you do repeal:
 Escalate the repeal to the user (§2) only if it's *also* a product/business call — not merely
 because the old ADR was "already accepted."
 
+To re-validate an EXISTING decision (issue/ADR) against later law, use a `debate-lex-posteriori`
+skill if one is installed — this skill is for resolving NEW forks in a plan.
+
 ## 2. When to escalate (the only questions you ask)
 
 - The fork is a **product/business** call (scope, user-facing behaviour, cost trade the user owns).
@@ -89,8 +94,9 @@ Bundle escalations; don't drip one trivial question at a time. Everything else: 
 
 - A concise **decision log** (the table from §1.5) surfaced for veto — before exiting planning,
   if planning. The user can override any line; the log makes each call auditable.
-- **Offer an ADR** only when all three hold: hard to reverse, surprising without context, the
-  result of a real trade-off. File it; reference `PRINCIPLES §N`.
+- **Offer an ADR** only when all three hold (the same bar `mattpocock-skills:grill-with-docs` uses):
+  hard to reverse, surprising without context, the result of a real trade-off. File it; reference
+  `PRINCIPLES §N`.
 
 ## 4. Stop when
 
