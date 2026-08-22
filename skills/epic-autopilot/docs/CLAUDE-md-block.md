@@ -13,7 +13,16 @@
 - **Pre-existing red baseline:** <tests + tracking issue — check before debugging red gate>
 - **Never-do:** <repo-specific: e.g. no bulk-format, no `git add -A`, ...>
 - **Principles doc (fork adjudication authority):** <docs/PRINCIPLES.md>
-- **Handoff path convention:** </tmp/handoff-<epic>.md | repo path>
+- **Epic STATE lives in:** <tracker notes on the epic issue (e.g. `bd update <epic> --append-notes`,
+  replace the marked `## STATE` block) | the handoff file>
+- **Handoff path convention:** </tmp/handoff-<epic>.md | repo path> — pointer layer only, written
+  by `follow-up`
+- **Code review:** `mattpocock-skills:code-review`, fixed point `origin/<main>`, spec = the issue
+  (fetched via the tracker; see `docs/agents/issue-tracker.md` if `setup-matt-pocock-skills` ran)
+- **Merge-driver files (never hand-resolve first):** <e.g. .beads/issues.jsonl | none>
+- **Sub-agent models (epic-autopilot-subagents):** reviewer `fable` (fixed); builder default
+  `opus`, per-issue label `model:sonnet|opus`, run arg `builder=opus|sonnet|auto`
+- **Mandated close artifacts:** <label → doc the close-reason must cite | none>
 - **Loop protocol:** <stop-after-each-bead (user compacts + re-issues forward command)
   | self-compact at ~<N>k output tokens>
 - **Unrelated-bug policy:** file issue immediately with clean-base proof; inline fix
