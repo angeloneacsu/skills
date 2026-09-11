@@ -31,6 +31,7 @@ cp -r skills/skills/<name> ~/.claude/skills/        # user-level
 | [epic-autopilot-subagents](skills/epic-autopilot-subagents/SKILL.md) | Same loop as orchestrator only: builder sub-agent (model per issue: Opus default / Sonnet / auto) + reviewer sub-agent on Fable running `mattpocock-skills:code-review`. You keep forks, landing, tracker state. |
 | [follow-up](skills/follow-up/SKILL.md) | Pointer-only follow-up note (≤ 15 lines): next issue id, show commands, scope, skills. State stays on the tracker; the note just sends the next agent there. |
 | [grill-yourself](skills/grill-yourself/SKILL.md) | Self-interrogation resolving technical forks using YOUR principles doc as adjudicator. Principles are user-defined per repo (`docs/PRINCIPLES.md` or path declared in CLAUDE.md) — never bundled. `adversarial-debate` optional (inline steelman fallback). |
+| [harvest-learnings](skills/harvest-learnings/SKILL.md) | End-of-session harvest of durable lessons into auto-memory, an existing skill's reference files, or the project tracker (`bd remember`). Filters hard (durable, non-obvious, behaviour-changing, not already stored), routes by scope, and reports what was deliberately NOT saved. |
 
 ### epic-autopilot extras
 - `skills/epic-autopilot/templates/HANDOFF-TEMPLATE.md` — copy per epic as the rolling handoff
