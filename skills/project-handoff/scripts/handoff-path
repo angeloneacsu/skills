@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Resolve the project root for the current work and create an empty handoff file in
+# <root>/.handoffs/. Prints the absolute path of the file on stdout; diagnostics go to stderr.
+#
+#   scripts/handoff-path            # resolve from $PWD
+#   scripts/handoff-path /some/dir  # resolve from an explicit directory
+#
+# Resolution, in order:
+#   1. nearest ancestor containing .beads/            (issue-tracker root; handles nested projects)
+#   2. nearest ancestor containing CLAUDE.md or AGENTS.md
+#   3. the git top-level of the start directory
+# The walk stops below $HOME. If none match, it fails rather than guessing.
+set -uo pipefail
+
+start="${1:-$PWD}"
+[ -d "$start" ] || { echo "not a directory: $start" >&2; exit 2; }
+start="$(cd "$start" && pwd -P)"
+
+root=""
+reason=""
+# Never treat $HOME itself (or /) as a project, even if it holds a CLAUDE.md or .beads/.
+home="$(cd "$HOME" 2>/dev/null && pwd -P || echo /)"
+
+# 1 + 2: walk up looking for the markers of a project root.
+d="$start"
+while [ "$d" != "/" ] && [ "$d" != "$home" ]; do
+  if [ -d "$d/.beads" ]; then root="$d"; reason=".beads/"; break; fi
+  d="$(dirname "$d")"
+done
+if [ -z "$root" ]; then
+  d="$start"
+  while [ "$d" != "/" ] && [ "$d" != "$home" ]; do
+    if [ -f "$d/CLAUDE.md" ] || [ -f "$d/AGENTS.md" ]; then root="$d"; reason="CLAUDE.md/AGENTS.md"; break; fi
+    d="$(dirname "$d")"
+  done
+fi
+
+# 3: fall back to the git top-level.
+if [ -z "$root" ]; then
+  top="$(git -C "$start" rev-parse --show-toplevel 2>/dev/null)" && { root="$top"; reason="git top-level"; }
+fi
+
+if [ -z "$root" ] || [ ! -d "$root" ]; then
+  echo "❌ Could not resolve a project root from: $start" >&2
+  echo "   No ancestor has .beads/, CLAUDE.md or AGENTS.md, and it is not inside a git repo." >&2
+  echo "   Ask the user which project this handoff belongs to, then pass it: $0 <dir>" >&2
+  exit 1
+fi
+
+dir="$root/.handoffs"
+mkdir -p "$dir" || { echo "❌ cannot create $dir" >&2; exit 1; }
+
+# Keep handoffs out of git without touching tracked files: local, per-clone exclude.
+if exclude="$(git -C "$root" rev-parse --git-path info/exclude 2>/dev/null)"; then
+  case "$exclude" in /*) ;; *) exclude="$root/$exclude" ;; esac
+  mkdir -p "$(dirname "$exclude")"
+  grep -qxF '.handoffs/' "$exclude" 2>/dev/null || echo '.handoffs/' >> "$exclude"
+fi
+
+stamp="$(date +%Y-%m-%d)"
+file="$dir/HANDOFF-${stamp}.md"
+
+# Never clobber an existing handoff - a second one today gets its own file.
+if [ -e "$file" ]; then
+  n=2
+  while [ -e "$dir/HANDOFF-${stamp}-${n}.md" ]; do n=$((n+1)); done
+  file="$dir/HANDOFF-${stamp}-${n}.md"
+fi
+
+: > "$file" || { echo "❌ cannot write to $dir" >&2; exit 1; }
+echo "resolved project root: $root  (via $reason)" >&2
+echo "$file"

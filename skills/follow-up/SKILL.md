@@ -1,6 +1,6 @@
 ---
 name: follow-up
-description: Write a quick, pointer-only follow-up note (text, Matt-style handoff) that sends the next agent to the tracker issues it needs — next issue id(s), the show commands, one-line scope, skills to use — and carries no state of its own; durable state stays on the tracker (the epic's STATE block). Use when ending a session or forking a side task inside the same repo ("write a follow-up", "quick handoff", "send it to the issues", "follow-up for <issue>"), and at the epic-autopilot self-compact step. For a portable, stateful handoff to another directory / harness / colleague use `mattpocock-skills:handoff` instead.
+description: Write a quick, pointer-only follow-up note (text, Matt-style handoff) that sends the next agent to the tracker issues it needs — next issue id(s), the show commands, one-line scope, skills to use — and carries no state of its own; durable state stays on the tracker (the epic's STATE block). Use when ending a session or forking a side task inside the same repo ("write a follow-up", "quick handoff", "send it to the issues", "follow-up for <issue>"), and at the epic-autopilot self-compact step. For a portable, stateful handoff to another directory / harness / colleague use `mattpocock-skills:handoff` instead, or `project-handoff` to keep a full handoff in the project's `.handoffs/`.
 argument-hint: "<next-issue-id(s)> [path] [skills]"
 ---
 
@@ -23,7 +23,11 @@ at it. Tracker commands come from the repo's CLAUDE.md (`## Epic-autopilot param
    marked block. Done when: a context-free agent could work the issue from "show" alone —
    the note never compensates for a thin issue.
 3. **Write the note** from the template, ≤ 15 lines. Path: the one passed as argument; else
-   the OS temp dir, and paste it in the reply too. Throwaway by design — never commit it; never
+   `<repo-root>/.followups/FOLLOWUP-<YYYY-MM-DD>-<next-id>.md` (repo root = `git rev-parse
+   --show-toplevel`; outside a git repo, the OS temp dir). Create the folder if missing, add
+   `.followups/` to the repo's local exclude file (`git rev-parse --git-path info/exclude`,
+   append only if absent — never edit the tracked `.gitignore`), never overwrite an existing
+   note, and paste the note in the reply too. Throwaway by design — never commit it; never
    treat it as the rolling coordination state.
 4. **Redact** secrets / PII; reference files and commits by path/SHA, never paste content.
 
