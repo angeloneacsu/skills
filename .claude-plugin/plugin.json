@@ -1,7 +1,7 @@
 {
   "name": "angelo-skills",
-  "description": "Angelo Neacsu's agent skills pack \u2014 epic-autopilot (+ sub-agents variant), follow-up, grill-yourself; composes mattpocock-skills inside the epic loop",
-  "version": "0.2.0",
+  "description": "Angelo Neacsu's agent skills pack \u2014 epic-autopilot (+ sub-agents variant), follow-up, grill-yourself, harvest-learnings; composes mattpocock-skills inside the epic loop",
+  "version": "0.3.0",
   "author": {
     "name": "Angelo Neacsu"
   }
