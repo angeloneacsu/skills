@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Resolve the project root for the current work and create an empty handoff file in
-# <root>/.handoffs/. Prints the absolute path of the file on stdout; diagnostics go to stderr.
+# Resolve the current project root and hand back a durable path inside it.
+# Never returns anything under /tmp: temp dirs are wiped on reboot and the file is lost.
 #
-#   scripts/handoff-path            # resolve from $PWD
-#   scripts/handoff-path /some/dir  # resolve from an explicit directory
+#   handoff-path                 # create + print a new handoff file in <root>/.handoffs/
+#   handoff-path /some/dir       # ...resolving the project from an explicit directory
+#   handoff-path --scratch       # create + print <root>/.scratch/ for throwaway working files
+#   handoff-path --list          # list existing handoff files, newest last
+#   handoff-path --root          # print just the resolved project root
 #
 # Resolution, in order:
 #   1. nearest ancestor containing .beads/            (issue-tracker root; handles nested projects)
@@ -12,7 +15,19 @@
 # The walk stops below $HOME. If none match, it fails rather than guessing.
 set -uo pipefail
 
-start="${1:-$PWD}"
+mode="handoff"
+start=""
+for arg in "$@"; do
+  case "$arg" in
+    --scratch) mode="scratch" ;;
+    --list)    mode="list" ;;
+    --root)    mode="root" ;;
+    -*)        echo "unknown option: $arg" >&2; exit 2 ;;
+    *)         start="$arg" ;;
+  esac
+done
+start="${start:-$PWD}"
+
 [ -d "$start" ] || { echo "not a directory: $start" >&2; exit 2; }
 start="$(cd "$start" && pwd -P)"
 
@@ -43,30 +58,51 @@ fi
 if [ -z "$root" ] || [ ! -d "$root" ]; then
   echo "❌ Could not resolve a project root from: $start" >&2
   echo "   No ancestor has .beads/, CLAUDE.md or AGENTS.md, and it is not inside a git repo." >&2
-  echo "   Ask the user which project this handoff belongs to, then pass it: $0 <dir>" >&2
+  echo "   Ask the user which project this belongs to, then pass it: $0 <dir>" >&2
+  echo "   Do NOT fall back to /tmp." >&2
   exit 1
 fi
 
-dir="$root/.handoffs"
-mkdir -p "$dir" || { echo "❌ cannot create $dir" >&2; exit 1; }
-
-# Keep handoffs out of git without touching tracked files: local, per-clone exclude.
-if exclude="$(git -C "$root" rev-parse --git-path info/exclude 2>/dev/null)"; then
+# Keep these directories out of git without touching tracked files: local, per-clone exclude.
+git_exclude() {
+  local pattern="$1" exclude
+  exclude="$(git -C "$root" rev-parse --git-path info/exclude 2>/dev/null)" || return 0
   case "$exclude" in /*) ;; *) exclude="$root/$exclude" ;; esac
-  mkdir -p "$(dirname "$exclude")"
-  grep -qxF '.handoffs/' "$exclude" 2>/dev/null || echo '.handoffs/' >> "$exclude"
-fi
+  mkdir -p "$(dirname "$exclude")" 2>/dev/null || return 0
+  grep -qxF "$pattern" "$exclude" 2>/dev/null || echo "$pattern" >> "$exclude"
+}
 
-stamp="$(date +%Y-%m-%d)"
-file="$dir/HANDOFF-${stamp}.md"
-
-# Never clobber an existing handoff - a second one today gets its own file.
-if [ -e "$file" ]; then
-  n=2
-  while [ -e "$dir/HANDOFF-${stamp}-${n}.md" ]; do n=$((n+1)); done
-  file="$dir/HANDOFF-${stamp}-${n}.md"
-fi
-
-: > "$file" || { echo "❌ cannot write to $dir" >&2; exit 1; }
-echo "resolved project root: $root  (via $reason)" >&2
-echo "$file"
+case "$mode" in
+  root)
+    echo "resolved project root: $root  (via $reason)" >&2
+    echo "$root"
+    ;;
+  scratch)
+    dir="$root/.scratch"
+    mkdir -p "$dir" || { echo "❌ cannot create $dir" >&2; exit 1; }
+    git_exclude '.scratch/'
+    echo "resolved project root: $root  (via $reason)" >&2
+    echo "$dir"
+    ;;
+  list)
+    dir="$root/.handoffs"
+    [ -d "$dir" ] || { echo "no handoffs yet in $dir" >&2; exit 0; }
+    ls -1 "$dir"/HANDOFF-*.md 2>/dev/null | sort || { echo "no handoffs yet in $dir" >&2; exit 0; }
+    ;;
+  handoff)
+    dir="$root/.handoffs"
+    mkdir -p "$dir" || { echo "❌ cannot create $dir" >&2; exit 1; }
+    git_exclude '.handoffs/'
+    stamp="$(date +%Y-%m-%d)"
+    file="$dir/HANDOFF-${stamp}.md"
+    # Never clobber an existing handoff - a second one today gets its own file.
+    if [ -e "$file" ]; then
+      n=2
+      while [ -e "$dir/HANDOFF-${stamp}-${n}.md" ]; do n=$((n+1)); done
+      file="$dir/HANDOFF-${stamp}-${n}.md"
+    fi
+    : > "$file" || { echo "❌ cannot write to $dir" >&2; exit 1; }
+    echo "resolved project root: $root  (via $reason)" >&2
+    echo "$file"
+    ;;
+esac
