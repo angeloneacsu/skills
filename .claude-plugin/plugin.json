@@ -1,7 +1,7 @@
 {
   "name": "angelo-skills",
   "description": "Angelo Neacsu's agent skills pack \u2014 epic-autopilot (+ sub-agents variant), follow-up, project-handoff, grill-yourself, harvest-learnings, gcp-iam-analyzer, k8s-scoring-fix, java-wildfly-performance; composes mattpocock-skills inside the epic loop",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "author": {
     "name": "Angelo Neacsu"
   }

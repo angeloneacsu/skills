@@ -63,6 +63,12 @@ Two rules that decide most borderline cases:
 - **Respect the project's own rule.** If the project's CLAUDE.md says to use `bd remember` and not
   MEMORY.md files, project knowledge goes to `bd` — even when auto-memory would be convenient.
   Check CLAUDE.md before writing.
+- **Layered skills: route inside the pair.** When a domain has a published, generic leaf skill and
+  a local wrapper that loads it and adds one organisation's data, a gotcha that holds everywhere
+  goes to the leaf — edited in the leaf's source repository and shipped through its normal review,
+  never in the installed plugin copy, which the next update overwrites. Anything naming the
+  organisation's systems, projects, hosts, people or internal identifiers goes to the wrapper. A
+  lesson with both halves is split: the mechanism in the leaf, the local values in the wrapper.
 
 ## Phase 4 — Write
 
