@@ -1,6 +1,6 @@
 ---
 name: project-handoff
-description: Compact the current conversation into a handoff document and save it inside the project, in a hidden `.handoffs/` folder at the project root, instead of a throwaway temp file. Also resolves a project-local `.scratch/` for working files and drafts, so nothing a later session needs is written under /tmp. Use when the user asks for a handoff ("write a handoff", "handoff in the project", "save the handoff in the repo", "pune handoff-ul in proiect", "/project-handoff"), or needs a durable place for a draft, rendered manifest or intermediate output. For a pointer-only note to the next tracker issue use `follow-up`.
+description: Compact the current conversation into a handoff document and save it inside the project, in a hidden `.handoffs/` folder at the project root, instead of a throwaway temp file. Also resolves a project-local `.scratch/` for working files and drafts, so nothing a later session needs is written under /tmp. On every invocation it also updates the project's tracker issues (beads/Jira/GitHub) that the session touched — comments, closes, new issues — before writing, so the handoff and the tracker tell the same story. Use when the user asks for a handoff ("write a handoff", "handoff in the project", "save the handoff in the repo", "pune handoff-ul in proiect", "/project-handoff"), or needs a durable place for a draft, rendered manifest or intermediate output. For a pointer-only note to the next tracker issue use `follow-up`.
 argument-hint: "What will the next session be used for?"
 ---
 
@@ -64,15 +64,38 @@ nothing to send, and the work is done twice.
 Say in the handoff whether each draft was **sent** or is **still pending**. If you do not know,
 write that you do not know rather than guessing.
 
-## Tracked work, and deleting the handoff when it is done
+## Tracked work: update the tracker on every invocation
 
 If the project uses an issue tracker (beads, Jira, GitHub issues), a handoff is a **pointer to
-tracked work**, not a second tracker. Open the issues it needs, then list their ids in the handoff:
+tracked work**, not a second tracker. So **every invocation of this skill updates the tracker
+before the handoff is written** — not only when the user asks. Skipping this leaves the next
+session with a handoff that says one thing and a tracker that says another. Tracker commands come
+from the project's CLAUDE.md; `bd` is used below as the example.
+
+1. **Find the issues this session touched.** `bd list --status open` (or `bd ready`), matched
+   against what the conversation worked on. Done when: every piece of work in the handoff maps to
+   an issue id, or to a new issue created in the next step.
+2. **Create issues for work that has none.** Anything the handoff would list under "next steps"
+   that is not tracked yet gets an issue (`bd create`), with the same scope and acceptance you
+   would otherwise write in prose.
+3. **Update each touched issue** so it is self-sufficient without the handoff:
+   - finished → `bd close <id>` (after the handoff-deletion check below);
+   - progressed → `bd comment <id>` / `bd update <id> --append-notes` with what was done, what
+     is verified vs inferred, the paths of files or drafts produced, and the exact next action;
+   - blocked → say on the issue what blocks it and who unblocks it.
+   Point at files by path and at the handoff by its path; never paste secrets.
+4. **Then list the ids in the handoff:**
 
 ```markdown
 ## Covered by
 PROJ-61g.2, PROJ-61g.8, PROJ-61g.12
 ```
+
+Done when: `bd show <id>` on each id in `Covered by` tells the same story as the handoff, and no
+open work in the handoff lacks an id. If the project has no tracker, say so in the handoff in one
+line instead of inventing ids.
+
+### Deleting the handoff when it is done
 
 **When the work in a handoff is finished, delete the handoff file before closing the last issue it
 covers.** A stale handoff is worse than none: the next session reads it, believes the work is still
