@@ -1,0 +1,16 @@
+{
+  "description": "harvest-learnings: after a context compaction, remind the agent to self-harvest lessons the summary still carries",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/hooks/postcompact-harvest.txt\""
+          }
+        ]
+      }
+    ]
+  }
+}
