@@ -246,6 +246,8 @@ This works because `exec` runs **inside** the container's network namespace (loo
 
 **Cloud SQL Auth Proxy v2** (`cloud-sql-proxy`, replaces the deprecated v1 `gce-proxy`) has built-in health endpoints: start it with `--health-check --http-address=0.0.0.0` and use `httpGet` probes on port `9090`, paths `/startup`, `/liveness`, `/readiness`. Prefer migrating to v2 over probing v1.
 
+**Never put a `tcpSocket` probe on the proxy's DB port (5432).** v2 binds `127.0.0.1` only, while kubelet probes the pod IP, so the probe fails with `dial tcp <podIP>:5432: connect: connection refused` even though the proxy log says it started successfully; the liveness probe then kills a healthy sidecar every period (CrashLoopBackOff, rollout never completes). The fix is the health-check flags above, not `--address=0.0.0.0` (that exposes the DB port on the pod network).
+
 **Emergency fix if wrong probe was deployed:**
 ```bash
 # Remove readiness probe from cloudsql-proxy (container index 1)
