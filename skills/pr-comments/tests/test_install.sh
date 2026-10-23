@@ -122,3 +122,36 @@ test_install_rejects_bad_interval() {
   [[ $rc -ne 0 ]] && grep -q 'INTERVAL_MIN' <<<"$err" || { echo "$err"; return 1; }
   [[ ! -e "$HOME/.local" && ! -s "$STUB_LOG" ]] || return 1
 }
+
+test_install_run_timer_no_disables() {
+  install_setup
+  mkdir -p "$(dirname "$CONF")"; printf 'ORGS=(x)\nRUN_TIMER=no\n' > "$CONF"
+  "$INSTALL" >/dev/null
+  grep -qx 'systemctl --user disable --now pr-comments.timer' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+  ! grep -q 'enable --now' <(grep -v disable "$STUB_LOG") || { cat "$STUB_LOG"; return 1; }
+  [[ -x "$HOME/.local/bin/pr-comments-poll" ]]
+}
+
+test_install_rejects_bad_run_timer() {
+  install_setup
+  mkdir -p "$(dirname "$CONF")"; printf 'ORGS=(x)\nRUN_TIMER=maybe\n' > "$CONF"
+  rc=0; err=$("$INSTALL" 2>&1 >/dev/null) || rc=$?
+  [[ $rc -ne 0 ]] && grep -q 'RUN_TIMER' <<<"$err" || { echo "$err"; return 1; }
+  [[ ! -e "$HOME/.local" ]]
+}
+
+test_install_remote_checks_ssh_from_unit() {
+  install_setup
+  mkdir -p "$(dirname "$CONF")"; printf 'REMOTE=vm\n' > "$CONF"
+  "$INSTALL" >/dev/null
+  grep '^systemd-run' "$STUB_LOG" | grep -q -- '--wait .*ssh -o BatchMode=yes -o ConnectTimeout=15 vm true' || { cat "$STUB_LOG"; return 1; }
+  grep -qx 'systemctl --user enable --now pr-comments.timer' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+}
+
+test_install_remote_ssh_failure_warns() {
+  install_setup
+  mkdir -p "$(dirname "$CONF")"; printf 'REMOTE=vm\n' > "$CONF"
+  err=$(SYSTEMD_RUN_EXIT=255 "$INSTALL" 2>&1 >/dev/null)
+  grep -q "warning: 'ssh vm' fails" <<<"$err" || { echo "$err"; return 1; }
+  grep -qx 'systemctl --user enable --now pr-comments.timer' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+}

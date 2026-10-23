@@ -39,7 +39,7 @@ cp -r skills/skills/<name> ~/.claude/skills/        # user-level
 | [pr-comments](skills/pr-comments/SKILL.md) | Desktop notification when a human comments on one of your open PRs (systemd user timer + `gh`); clicking opens a terminal with Claude Code in a temporary detached worktree, where the skill walks through unresolved comments one by one (fix / modify / skip / mark handled) and posts nothing without your OK. Linux + systemd + `notify-send` only. |
 
 ### pr-comments setup
-Linux with systemd user units, `gh` (authenticated), `jq`, `notify-send`. Scripts are copied out of the
+Linux with systemd user units, `gh` (authenticated), `jq`, `notify-send` (`busctl` checks that a notification server is running). Scripts are copied out of the
 plugin cache, so re-run the installer after a plugin update:
 ```bash
 bash skills/pr-comments/scripts/pr-comments-install    # path inside your clone / the plugin cache
@@ -54,6 +54,13 @@ clicking the notification opens `/angelo-skills:pr-comments --fix-auth`, which e
 plugin form `/angelo-skills:pr-comments`; if you installed the skill manually as a user skill
 (`~/.claude/skills/`), the plain `/pr-comments` works instead. On a first install the timer is not enabled
 until you have edited the config and re-run the installer.
+
+**Desktop on another machine** (e.g. you work over ssh in a VM without a graphical session): install on
+both. On the machine with `gh` and the clones set `RUN_TIMER=no` (no timer there). On the desktop set
+`REMOTE=<ssh destination>` and `TERMINAL` (e.g. `konsole -e`); there the timer runs
+`ssh REMOTE pr-comments-poll --emit`, shows the notifications and keeps the seen-state, and a click opens a
+local terminal with `ssh -t REMOTE pr-comments-open --here …`. The desktop needs `ssh` with a key usable
+from a systemd user unit (the installer checks), `jq` and `notify-send`; it does not need `gh`.
 
 ### epic-autopilot extras
 - `skills/epic-autopilot/templates/HANDOFF-TEMPLATE.md` — copy per epic as the rolling handoff

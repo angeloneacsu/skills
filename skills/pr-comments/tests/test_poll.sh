@@ -12,7 +12,7 @@ poll_setup() {
   SEEN="$STATE/seen" HANDLED="$STATE/handled"
   STUB_LOG=$(mktemp); export STUB_LOG
   GH_FIXTURE="$POLL_FIXTURE"; export GH_FIXTURE
-  unset GH_EXIT GH_STDERR GH_AUTH_EXIT GH_LOGIN SYSTEMD_RUN_EXIT
+  unset GH_EXIT GH_STDERR GH_AUTH_EXIT GH_LOGIN SYSTEMD_RUN_EXIT BUSCTL_EXIT SSH_EXIT SSH_STDERR SSH_EMIT
   export PATH="$PC_TESTS_DIR/stubs:${PC_ORIG_PATH:=$PATH}"
 }
 count_log() { grep -c -- "$1" "$STUB_LOG" || true; }
@@ -212,4 +212,91 @@ test_poll_spawn_passes_path() {
   poll_setup
   "$POLL" 2>/dev/null
   grep '^systemd-run' "$STUB_LOG" | grep -qF -- "--setenv=PATH=$PATH" || { cat "$STUB_LOG"; return 1; }
+}
+
+test_poll_no_notification_server_keeps_unseen() {
+  poll_setup
+  local rc=0
+  BUSCTL_EXIT=1 "$POLL" 2>/dev/null || rc=$?
+  [[ $rc -eq 6 ]] || { echo "rc=$rc"; return 1; }
+  [[ $(count_log '^systemd-run') == 0 ]] || { cat "$STUB_LOG"; return 1; }
+  [[ ! -s "$SEEN" ]] || { echo "seen: $(sorted_seen)"; return 1; }
+}
+
+test_poll_emit_prints_items_without_state() {
+  poll_setup
+  local out
+  out=$("$POLL" --emit 2>/dev/null)
+  [[ $(printf '%s\n' "$out" | wc -l) == 3 ]] || { echo "$out"; return 1; }
+  jq -e 'select(.id == "T1") | .repo == "my-org/svc" and .number == 12' <<<"$out" >/dev/null || { echo "$out"; return 1; }
+  [[ $(count_log '^systemd-run') == 0 && $(count_log '^busctl') == 0 && $(count_log '^systemctl') == 0 ]] || { cat "$STUB_LOG"; return 1; }
+  [[ ! -s "$SEEN" ]]
+}
+
+test_poll_emit_auth_error_exit_only() {
+  poll_setup
+  local rc=0
+  GH_EXIT=1 GH_STDERR="HTTP 401: Bad credentials" "$POLL" --emit 2>/dev/null || rc=$?
+  [[ $rc -eq 3 ]] || { echo "rc=$rc"; return 1; }
+  [[ $(count_log '^systemd-run') == 0 && $(count_log '^systemctl') == 0 ]] || { cat "$STUB_LOG"; return 1; }
+  [[ ! -e "$STATE/auth-paused" ]] || return 1
+  rc=0
+  GH_EXIT=1 GH_STDERR="could not resolve host" "$POLL" --emit 2>/dev/null || rc=$?
+  [[ $rc -eq 4 && $(count_log '^systemd-run') == 0 ]] || { echo "rc=$rc"; cat "$STUB_LOG"; return 1; }
+}
+
+# Desktop side: config with REMOTE; SSH_EMIT holds what the remote --emit printed.
+remote_setup() {
+  poll_setup
+  local e; e=$(mktemp)
+  "$POLL" --emit > "$e" 2>/dev/null
+  : > "$STUB_LOG"
+  echo 'REMOTE=vm' > "$XDG_CONFIG_HOME/pr-comments/config"
+  export SSH_EMIT="$e"
+}
+
+test_poll_remote_notifies_from_ssh() {
+  remote_setup
+  "$POLL" 2>/dev/null
+  grep -qx 'ssh -o BatchMode=yes -o ConnectTimeout=15 vm .local/bin/pr-comments-poll --emit' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+  [[ $(count_log '^gh ') == 0 ]] || { cat "$STUB_LOG"; return 1; }
+  grep '^systemd-run' "$STUB_LOG" | grep -q -- 'pr-comments-notify my-org/svc 12 .*3 new comment(s) from reviewer' || { cat "$STUB_LOG"; return 1; }
+  [[ "$(sorted_seen)" == "C1 R1 T1" ]] || return 1
+  : > "$STUB_LOG"
+  "$POLL" 2>/dev/null
+  [[ $(count_log '^systemd-run') == 0 ]] || { cat "$STUB_LOG"; return 1; }
+}
+
+test_poll_remote_auth_error_stops_timer() {
+  remote_setup
+  local rc=0
+  SSH_EXIT=3 SSH_STDERR="HTTP 401" "$POLL" 2>/dev/null || rc=$?
+  [[ $rc -eq 3 ]] || { echo "rc=$rc"; return 1; }
+  [[ $(grep '^systemd-run' "$STUB_LOG" | grep -c -- 'pr-comments-notify --auth') == 1 ]] || { cat "$STUB_LOG"; return 1; }
+  grep -qx 'systemctl --user stop pr-comments.timer' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+  [[ -e "$STATE/auth-paused" ]] || return 1
+  # fixed on the remote side: the next run resumes and notifies
+  : > "$STUB_LOG"
+  "$POLL" 2>/dev/null
+  [[ ! -e "$STATE/auth-paused" ]] || return 1
+  grep -qx 'systemctl --user start pr-comments.timer' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+  [[ $(count_log 'pr-comments-notify my-org/svc 12') == 1 ]] || { cat "$STUB_LOG"; return 1; }
+}
+
+test_poll_remote_unreachable_is_error() {
+  remote_setup
+  local rc=0
+  SSH_EXIT=255 SSH_STDERR="Connection refused" "$POLL" 2>/dev/null || rc=$?
+  [[ $rc -eq 4 ]] || { echo "rc=$rc"; return 1; }
+  grep '^systemd-run' "$STUB_LOG" | grep -q -- 'pr-comments-notify --error .*cannot reach vm' || { cat "$STUB_LOG"; return 1; }
+  [[ $(count_log '^systemctl') == 0 ]] || { cat "$STUB_LOG"; return 1; }
+}
+
+test_poll_resume_without_timer_only_clears_flag() {
+  poll_setup
+  echo 'RUN_TIMER=no' >> "$XDG_CONFIG_HOME/pr-comments/config"
+  touch "$STATE/auth-paused"
+  "$POLL" --resume >/dev/null
+  [[ ! -e "$STATE/auth-paused" ]] || return 1
+  [[ $(count_log '^systemctl') == 0 && $(count_log '^systemd-run') == 0 && $(count_log '^gh ') == 0 ]] || { cat "$STUB_LOG"; return 1; }
 }

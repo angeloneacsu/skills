@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Poll GitHub for new human comments on my open PRs; one notification per PR.
-# Usage: pr-comments-poll [--dry-run | --reset [--all] | --resume | --mark-handled ID...]
+# Usage: pr-comments-poll [--dry-run | --reset [--all] | --resume | --mark-handled ID... | --emit]
+# With REMOTE set in the config, GitHub is queried on that host over ssh (its
+# pr-comments-poll --emit) and only the notifications are shown here.
 set -euo pipefail
 
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
@@ -12,20 +14,33 @@ QUERY="$(res query.graphql)"
 FILTER="$(res filter.jq)"
 NOTIFY="$SELF_DIR/pr-comments-notify"
 
-mode=run all=0 dry=0 ids=()
+mode=run all=0 dry=0 emit=0 ids=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) dry=1 ;;
     --reset) mode=reset ;;
     --all) all=1 ;;
     --resume) mode=resume ;;
+    --emit) emit=1 ;;
     --mark-handled) mode=mark; shift; ids=("$@"); break ;;
     *) echo "pr-comments-poll: unknown argument: $1" >&2; exit 64 ;;
   esac
   shift
 done
 
-spawn_notify() { systemd-run --user --collect --quiet --setenv=PATH="$PATH" "$NOTIFY" "$@"; }
+# A notification server must own the name: otherwise notify-send fails inside the
+# detached unit and the comments would be marked seen without ever being shown.
+notify_ready() {
+  busctl --user call org.freedesktop.Notifications /org/freedesktop/Notifications \
+    org.freedesktop.Notifications GetServerInformation >/dev/null 2>&1
+}
+spawn_notify() {
+  if ! notify_ready; then
+    echo "pr-comments: no desktop notification server on the session bus (no graphical session here? see REMOTE in the config)" >&2
+    return 1
+  fi
+  systemd-run --user --collect --quiet --setenv=PATH="$PATH" "$NOTIFY" "$@"
+}
 
 case "$mode" in
   reset)
@@ -37,6 +52,13 @@ case "$mode" in
     exit 0 ;;
   resume)
     rm -f "$PC_AUTH"
+    pc_load_config
+    if [[ "$RUN_TIMER" == no ]]; then
+      # Polling runs on the desktop host (REMOTE points here); it resumes itself
+      # when the session it opened ends.
+      echo "pr-comments: no timer on this machine (RUN_TIMER=no); the desktop host resumes polling"
+      exit 0
+    fi
     systemctl --user start pr-comments.timer ;;
 esac
 
@@ -52,7 +74,9 @@ notify_auth() {
   return 1
 }
 
-if [[ -e "$PC_AUTH" ]]; then
+pc_load_config
+
+if [[ -z "$REMOTE" && $emit -eq 0 && -e "$PC_AUTH" ]]; then
   if gh auth status >/dev/null 2>&1; then
     # Logged in again (manually, or after reboot/re-login): auto-resume.
     rm -f "$PC_AUTH" "$AUTH_MARKER"
@@ -63,8 +87,6 @@ if [[ -e "$PC_AUTH" ]]; then
     exit 3
   fi
 fi
-
-pc_load_config
 
 errf="$(mktemp)"; trap 'rm -f "$errf"' EXIT
 
@@ -78,48 +100,100 @@ gh_failed() {
        || ! gh auth status >/dev/null 2>&1; then
     auth=1
   fi
-  if [[ $auth -eq 1 ]]; then
-    # Timer is always stopped. The flag is set only once the notification was
-    # spawned; otherwise the next (manual) run retries the notification.
-    if [[ ! -e "$PC_AUTH" ]]; then
-      if notify_auth; then
-        : > "$PC_AUTH"
-      fi
-      systemctl --user stop pr-comments.timer
-    fi
-    echo "pr-comments: auth error: $msg" >&2
-    exit 3
+  if [[ $emit -eq 1 ]]; then
+    # The desktop side notifies; only report the class through the exit code.
+    echo "$msg" >&2
+    exit $(( auth ? 3 : 4 ))
   fi
+  [[ $auth -eq 1 ]] && auth_failed "$msg"
+  other_failed "gh error" "$msg"
+}
+
+# Auth error: notify once, stop the timer, exit 3. Never returns.
+auth_failed() {
+  # Timer is always stopped. The flag is set only once the notification was
+  # spawned; otherwise the next (manual) run retries the notification.
+  if [[ ! -e "$PC_AUTH" ]]; then
+    if notify_auth; then
+      : > "$PC_AUTH"
+    fi
+    systemctl --user stop pr-comments.timer
+  elif [[ ! -e "$AUTH_MARKER" ]]; then
+    notify_auth || true
+  fi
+  echo "pr-comments: auth error: $1" >&2
+  exit 3
+}
+
+# Any other failure: notify once until a run succeeds, exit 4. Never returns.
+other_failed() { # <label> <message>
   # Flag set only after a successful spawn, so a failed notify is retried next run.
   if [[ ! -e "$PC_ERROR" ]]; then
-    if spawn_notify --error "pr-comments: ${msg:0:200}"; then
+    if spawn_notify --error "pr-comments: ${2:0:200}"; then
       : > "$PC_ERROR"
     else
       echo "pr-comments: failed to spawn error notification" >&2
     fi
   fi
-  echo "pr-comments: gh error: $msg" >&2
+  echo "pr-comments: $1: $2" >&2
   exit 4
 }
 
-me=$(gh api user -q .login 2>"$errf") || gh_failed
-ignore=$(jq -nc '$ARGS.positional' --args "${IGNORE_AUTHORS[@]}")
-
 items=$(mktemp); trap 'rm -f "$errf" "$items"' EXIT
-for org in "${ORGS[@]}"; do
-  resp=$(gh api graphql -F query=@"$QUERY" -f q="is:pr is:open author:@me org:$org" 2>"$errf") || gh_failed
-  if ! jq -e '.errors == null and (.data.search.nodes | type) == "array"' <<<"$resp" >/dev/null 2>&1; then
-    echo "invalid GraphQL response for org $org: $(jq -rc '.errors // empty' <<<"$resp" 2>/dev/null | head -c 200)" > "$errf"
-    gh_failed
+
+# Remote host runs --emit; its stdout is the item list. Exits on failure.
+fetch_remote() {
+  local rc msg
+  rc=0
+  ssh -o BatchMode=yes -o ConnectTimeout=15 "$REMOTE" .local/bin/pr-comments-poll --emit \
+    > "$items" 2>"$errf" || rc=$?
+  msg="$(tr '\n' ' ' < "$errf")"
+  case $rc in
+    0) ;;
+    3) auth_failed "on $REMOTE: $msg" ;;
+    255) other_failed "ssh error" "cannot reach $REMOTE: $msg" ;;
+    *) other_failed "remote error" "on $REMOTE (exit $rc): $msg" ;;
+  esac
+  [[ -z "$msg" ]] || echo "$msg" >&2   # e.g. truncation warnings from the remote side
+  if [[ -e "$PC_AUTH" ]]; then
+    # Auth works again on the remote host: auto-resume.
+    rm -f "$PC_AUTH" "$AUTH_MARKER"
+    systemctl --user start pr-comments.timer || true
   fi
-  pc_warn_truncated <<<"$resp"
-  jq -c --arg me "$me" --argjson ignore "$ignore" \
-    --slurpfile handled <(pc_handled_json "$PC_HANDLED") \
-    -f "$FILTER" <<<"$resp" >> "$items" 2>"$errf" || gh_failed
-done
+}
+
+# Query GitHub here; appends filtered items to $items. Exits on failure.
+fetch_local() {
+  local me ignore org resp
+  me=$(gh api user -q .login 2>"$errf") || gh_failed
+  ignore=$(jq -nc '$ARGS.positional' --args "${IGNORE_AUTHORS[@]}")
+
+  for org in "${ORGS[@]}"; do
+    resp=$(gh api graphql -F query=@"$QUERY" -f q="is:pr is:open author:@me org:$org" 2>"$errf") || gh_failed
+    if ! jq -e '.errors == null and (.data.search.nodes | type) == "array"' <<<"$resp" >/dev/null 2>&1; then
+      echo "invalid GraphQL response for org $org: $(jq -rc '.errors // empty' <<<"$resp" 2>/dev/null | head -c 200)" > "$errf"
+      gh_failed
+    fi
+    pc_warn_truncated <<<"$resp"
+    jq -c --arg me "$me" --argjson ignore "$ignore" \
+      --slurpfile handled <(pc_handled_json "$PC_HANDLED") \
+      -f "$FILTER" <<<"$resp" >> "$items" 2>"$errf" || gh_failed
+  done
+}
+
+if [[ -n "$REMOTE" && $emit -eq 0 ]]; then
+  fetch_remote
+else
+  fetch_local
+fi
+if [[ $emit -eq 1 ]]; then
+  cat "$items"
+  exit 0
+fi
 
 new=$(jq -c --slurpfile seen <(pc_handled_json "$PC_SEEN") \
-  'select(.id as $i | ($seen | index($i)) | not)' "$items" 2>"$errf") || gh_failed
+  'select(.id as $i | ($seen | index($i)) | not)' "$items" 2>"$errf") \
+  || other_failed "invalid items" "$(tr '\n' ' ' < "$errf")"
 
 if [[ $dry -eq 1 ]]; then
   [[ -z "$new" ]] || jq -r '"\(.repo)#\(.number) \(.author) \(.kind) \(.url)"' <<<"$new"
@@ -130,11 +204,13 @@ rm -f "$PC_ERROR"
 [[ -n "$new" ]] || exit 0
 
 # One notification per PR; a PR's ids are marked seen only once its notifier spawned.
+failed=0
 while IFS=$'\t' read -r repo number url summary ids_csv; do
   if spawn_notify "$repo" "$number" "$url" "$summary"; then
     tr ',' '\n' <<<"$ids_csv" >> "$PC_SEEN"
   else
     echo "pr-comments: failed to spawn notifier for $repo#$number" >&2
+    failed=1
   fi
 done < <(jq -rs '
   group_by(.repo + "#" + (.number | tostring))[]
@@ -142,3 +218,5 @@ done < <(jq -rs '
   | [.[0].repo, .[0].number, .[0].url,
      "\(length) new comment(s) from \($authors | join(", ")) — \(.[0].title)",
      ([.[].id] | join(","))] | @tsv' <<<"$new")
+# Unshown notifications: fail the unit so it is visible in systemctl --user status.
+exit $(( failed ? 6 : 0 ))

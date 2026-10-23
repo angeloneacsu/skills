@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests for scripts/pr-comments-open (real local git repos; gh/terminal stubs).
 OPEN="$PC_SCRIPTS_DIR/pr-comments-open"
+count_gh() { grep -c "^gh " "$STUB_LOG" || true; }
 
 # Builds origin (bare), a clone under CLONE_ROOTS, config and stubs. Sets T, ORIGIN, CLONE, WT.
 open_setup() {
@@ -166,4 +167,41 @@ test_open_unexpected_error_notifies_once() {
   [[ $rc -ne 0 ]] || return 1
   [[ $(grep -c '^notify-send .*unexpected error' "$STUB_LOG") == 1 ]] || { cat "$STUB_LOG"; return 1; }
   ! grep -q '^gnome-terminal' "$STUB_LOG" || return 1
+}
+
+test_open_here_runs_without_terminal() {
+  open_setup
+  # bash -lc runs claude for real here: put a claude stub first on PATH
+  local bin="$T/bin"; mkdir -p "$bin"
+  printf '#!/usr/bin/env bash\necho "claude $*" >> "$STUB_LOG"\n' > "$bin/claude"; chmod +x "$bin/claude"
+  PATH="$bin:$PATH" "$OPEN" --here my-org/svc 12
+  ! grep -q '^gnome-terminal' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+  grep -qx 'claude /angelo-skills:pr-comments https://github.com/my-org/svc/pull/12' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+  [[ -d "$WT/svc-pr-12" ]]
+}
+
+test_open_remote_opens_ssh_terminal() {
+  open_setup
+  echo 'REMOTE=vm' >> "$XDG_CONFIG_HOME/pr-comments/config"
+  "$OPEN" my-org/svc 12
+  grep '^gnome-terminal' "$STUB_LOG" | grep -qF 'ssh -t vm .local/bin/pr-comments-open\ --here\ my-org/svc\ 12\ ' || { cat "$STUB_LOG"; return 1; }
+  ! grep -q -- '--resume' "$STUB_LOG" || return 1
+  [[ $(count_gh) == 0 && ! -e "$WT/svc-pr-12" ]] || { cat "$STUB_LOG"; return 1; }
+}
+
+test_open_remote_fix_auth_resumes_here() {
+  open_setup
+  echo 'REMOTE=vm' >> "$XDG_CONFIG_HOME/pr-comments/config"
+  "$OPEN" --fix-auth
+  grep '^gnome-terminal' "$STUB_LOG" | grep -qF 'ssh -t vm .local/bin/pr-comments-open\ --here\ --fix-auth\ ' || { cat "$STUB_LOG"; return 1; }
+  grep '^gnome-terminal' "$STUB_LOG" | grep -q -- 'pr-comments-poll --resume' || { cat "$STUB_LOG"; return 1; }
+}
+
+test_open_here_failure_does_not_notify() {
+  open_setup
+  export GH_EXIT=1 GH_STDERR="could not resolve host"
+  local rc=0
+  "$OPEN" --here my-org/svc 12 2>/dev/null || rc=$?
+  [[ $rc -ne 0 ]] || return 1
+  ! grep -q '^notify-send' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
 }

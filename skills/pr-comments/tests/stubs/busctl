@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# busctl stub: logs argv to $STUB_LOG; BUSCTL_EXIT=1 simulates "no notification server".
+echo "busctl $*" >> "${STUB_LOG:?}"
+exit "${BUSCTL_EXIT:-0}"

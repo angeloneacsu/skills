@@ -27,6 +27,7 @@ pc_load_config() {
   fi
   ORGS=() CLONE_ROOTS=() IGNORE_AUTHORS=()
   CLONE_DIR="" WORKTREE_DIR="" TERMINAL="" INTERVAL_MIN="" ACTIVE_DAYS="" ACTIVE_HOURS=""
+  REMOTE="" RUN_TIMER=""
   # shellcheck disable=SC1090
   source "$f"
   [[ -n "$WORKTREE_DIR" ]] || WORKTREE_DIR="$HOME/work/temp"
@@ -35,6 +36,7 @@ pc_load_config() {
   [[ -n "$ACTIVE_DAYS" ]] || ACTIVE_DAYS="Mon..Fri"
   [[ -n "$ACTIVE_HOURS" ]] || ACTIVE_HOURS="08..18"
   [[ -n "$CLONE_DIR" ]] || CLONE_DIR="$HOME/src"
+  [[ -n "$RUN_TIMER" ]] || RUN_TIMER=yes
   return 0
 }
 

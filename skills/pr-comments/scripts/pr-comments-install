@@ -44,6 +44,10 @@ if [[ ! "$INTERVAL_MIN" =~ ^[1-9][0-9]*$ ]]; then
   echo "pr-comments-install: INTERVAL_MIN must be a positive integer, got '$INTERVAL_MIN' (in $conf); nothing installed" >&2
   exit 65
 fi
+if [[ "$RUN_TIMER" != yes && "$RUN_TIMER" != no ]]; then
+  echo "pr-comments-install: RUN_TIMER must be yes or no, got '$RUN_TIMER' (in $conf); nothing installed" >&2
+  exit 65
+fi
 if command -v systemd-analyze >/dev/null 2>&1 && ! systemd-analyze calendar "$oncal" >/dev/null 2>&1; then
   echo "pr-comments-install: invalid OnCalendar '$oncal' from ACTIVE_DAYS='$ACTIVE_DAYS' / ACTIVE_HOURS='$ACTIVE_HOURS' / INTERVAL_MIN='$INTERVAL_MIN' (in $conf); use systemd syntax like Mon..Fri and 08..18; nothing installed" >&2
   exit 65
@@ -70,5 +74,14 @@ if [[ $fresh -eq 1 ]]; then
   echo "pr-comments installed, timer NOT enabled yet: edit $conf, then re-run pr-comments-install (set ORGS, CLONE_ROOTS, ...)"
   exit 0
 fi
+if [[ "$RUN_TIMER" == no ]]; then
+  systemctl --user disable --now pr-comments.timer || true
+  echo "pr-comments installed, timer disabled (RUN_TIMER=no): this machine only serves 'pr-comments-poll --emit' and click sessions for a desktop that sets REMOTE"
+  exit 0
+fi
+if [[ -n "$REMOTE" ]] && ! systemd-run --user --wait --quiet --collect -p "Environment=PATH=$PATH" \
+     ssh -o BatchMode=yes -o ConnectTimeout=15 "$REMOTE" true; then
+  echo "pr-comments-install: warning: 'ssh $REMOTE' fails from a systemd user unit (key or agent not available there?); polls will report it as an error" >&2
+fi
 systemctl --user enable --now pr-comments.timer
-echo "pr-comments installed; polling: $oncal"
+echo "pr-comments installed; polling: $oncal${REMOTE:+ (GitHub queried on $REMOTE)}"

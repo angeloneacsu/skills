@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# ssh stub: logs argv to $STUB_LOG; prints $SSH_EMIT (a file) as the remote output,
+# or fails with $SSH_EXIT / $SSH_STDERR. Never runs the remote command.
+echo "ssh $*" >> "${STUB_LOG:?}"
+if [[ -n "${SSH_EXIT:-}" && "$SSH_EXIT" != 0 ]]; then
+  echo "${SSH_STDERR:-}" >&2
+  exit "$SSH_EXIT"
+fi
+[[ -z "${SSH_EMIT:-}" ]] || cat "$SSH_EMIT"

@@ -26,3 +26,13 @@ INTERVAL_MIN=5
 # "08..18" with a 5 minute interval means the last poll runs at 18:55.
 ACTIVE_DAYS="Mon..Fri"
 ACTIVE_HOURS="08..18"
+
+# Desktop on another machine (see README "Desktop on another machine").
+# On the desktop: ssh destination of the machine that has gh and the clones. GitHub is
+# queried there (pr-comments-poll --emit); notifications show here; a click opens TERMINAL
+# here with an ssh -t session. ORGS / CLONE_* / WORKTREE_DIR / IGNORE_AUTHORS are then
+# read from the remote machine's config, not this one.
+REMOTE=""
+
+# yes: this machine runs the poll timer. no: on the remote machine of such a desktop.
+RUN_TIMER=yes

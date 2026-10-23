@@ -23,6 +23,8 @@ in this session. Never resolve threads automatically.
    `! gh auth refresh -h github.com` if the token only expired. Wait, then re-run `gh auth status`.
    Repeat until it passes.
 3. Run `pr-comments-poll --resume` (starts the timer again and does one poll). Report the result and stop.
+   On a machine with `RUN_TIMER=no` (a desktop host polls it over ssh) it only clears the pause flag;
+   the desktop host resumes polling when this session ends.
 
 ## Mode: `<pr-url>`
 
