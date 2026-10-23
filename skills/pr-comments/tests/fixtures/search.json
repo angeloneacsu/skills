@@ -1,0 +1,22 @@
+{"data":{"search":{"pageInfo":{"hasNextPage":false},"nodes":[
+{"number":12,"title":"Add widget","url":"https://github.com/my-org/svc/pull/12",
+ "repository":{"nameWithOwner":"my-org/svc"},"headRefName":"feature/widget",
+ "headRepository":{"nameWithOwner":"my-org/svc"},
+ "commits":{"nodes":[{"commit":{"committedDate":"2026-10-20T10:00:00Z"}}]},
+ "reviewThreads":{"pageInfo":{"hasNextPage":true},"nodes":[
+  {"isResolved":false,"comments":{"nodes":[{"id":"T1","author":{"login":"reviewer","__typename":"User"},"createdAt":"2026-10-21T08:00:00Z","url":"https://github.com/my-org/svc/pull/12#discussion_r1"}]}},
+  {"isResolved":true,"comments":{"nodes":[{"id":"T2","author":{"login":"reviewer","__typename":"User"},"createdAt":"2026-10-21T08:05:00Z","url":"https://github.com/my-org/svc/pull/12#discussion_r2"}]}},
+  {"isResolved":false,"comments":{"nodes":[{"id":"T3","author":{"login":"me","__typename":"User"},"createdAt":"2026-10-21T08:10:00Z","url":"https://github.com/my-org/svc/pull/12#discussion_r3"}]}},
+  {"isResolved":false,"comments":{"nodes":[{"id":"T4","author":{"login":"greptile-apps[bot]","__typename":"Bot"},"createdAt":"2026-10-21T08:15:00Z","url":"https://github.com/my-org/svc/pull/12#discussion_r4"}]}},
+  {"isResolved":false,"comments":{"nodes":[{"id":"T5","author":{"login":"sonar","__typename":"Bot"},"createdAt":"2026-10-21T08:20:00Z","url":"https://github.com/my-org/svc/pull/12#discussion_r5"}]}}
+ ]},
+ "comments":{"pageInfo":{"hasNextPage":false},"nodes":[
+  {"id":"C0","author":null,"createdAt":"2026-10-21T09:00:00Z","url":"https://github.com/my-org/svc/pull/12#issuecomment-0"},
+  {"id":"C1","author":{"login":"reviewer","__typename":"User"},"createdAt":"2026-10-21T09:05:00Z","url":"https://github.com/my-org/svc/pull/12#issuecomment-1"},
+  {"id":"C2","author":{"login":"reviewer","__typename":"User"},"createdAt":"2026-10-19T09:00:00Z","url":"https://github.com/my-org/svc/pull/12#issuecomment-2"}
+ ]},
+ "reviews":{"pageInfo":{"hasNextPage":false},"nodes":[
+  {"id":"R1","author":{"login":"reviewer","__typename":"User"},"body":"pls fix","createdAt":"2026-10-21T09:10:00Z","url":"https://github.com/my-org/svc/pull/12#pullrequestreview-1"},
+  {"id":"R2","author":{"login":"reviewer","__typename":"User"},"body":"","createdAt":"2026-10-21T09:15:00Z","url":"https://github.com/my-org/svc/pull/12#pullrequestreview-2"}
+ ]}}
+]}}}

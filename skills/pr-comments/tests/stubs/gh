@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# gh stub: logs argv to $STUB_LOG; fixtures/failures driven by env.
+echo "gh $*" >> "${STUB_LOG:?}"
+if [[ "${1:-}" == auth ]]; then exit "${GH_AUTH_EXIT:-0}"; fi
+if [[ -n "${GH_EXIT:-}" && "$GH_EXIT" != 0 ]]; then
+  echo "${GH_STDERR:-}" >&2
+  exit "$GH_EXIT"
+fi
+case "${1:-} ${2:-}" in
+  "api user") echo "${GH_LOGIN:-me}" ;;
+  "api graphql") cat "${GH_FIXTURE:?}" ;;
+  "pr view") echo "${GH_PR_JSON:?}" ;;
+  "repo clone") git clone -q "${GH_CLONE_SRC:?}" "${4:?}" ;;
+esac

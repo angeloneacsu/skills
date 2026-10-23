@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Click handler: prepare a detached worktree for a PR and open Claude Code in a terminal.
+# Usage: pr-comments-open <owner/repo> <number>
+#        pr-comments-open --fix-auth
+# Exit codes: 2 config missing, 3 bad usage/clone/worktree problem, 5 PR from fork.
+set -Eeuo pipefail
+shopt -s execfail   # a failing exec (missing terminal) must reach the ERR trap
+
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+SHARE_DIR="$HOME/.local/share/pr-comments"
+res() { if [[ -e "$SELF_DIR/$1" ]]; then echo "$SELF_DIR/$1"; else echo "$SHARE_DIR/$1"; fi; }
+# shellcheck disable=SC1090
+source "$(res lib.sh)"
+pc_load_config || exit 2
+
+# Report a failure visibly (the user just clicked a notification) and exit.
+fail() { trap - ERR; echo "pr-comments: $1" >&2; "$SELF_DIR/pr-comments-notify" --error "$1" || true; exit "${2:-1}"; }
+
+# -E makes subshells ($(...)) inherit the trap; only the main shell may notify.
+PC_MAIN=$BASHPID
+trap '[[ $BASHPID == "$PC_MAIN" ]] && fail "unexpected error (line $LINENO)"' ERR
+
+launch() { # <shell command>; TERMINAL is intentionally word-split (command prefix)
+  # shellcheck disable=SC2086
+  exec $TERMINAL bash -lc "$1"
+}
+
+if [[ "${1:-}" == --fix-auth ]]; then
+  printf -v cmd 'cd %q && claude "/angelo-skills:pr-comments --fix-auth"' "$HOME"
+  launch "$cmd"
+fi
+
+repo="${1:-}" number="${2:-}"
+if [[ ! "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ || ! "$number" =~ ^[0-9]+$ ]]; then
+  echo "usage: pr-comments-open <owner/repo> <number> | --fix-auth" >&2
+  exit 3
+fi
+
+# 1. PR metadata; reject PRs whose head lives in a fork.
+info=$(gh pr view "$number" -R "$repo" --json headRefName,headRepository,headRepositoryOwner,url) \
+  || fail "cannot read $repo#$number (gh pr view failed)"
+branch=$(jq -r '.headRefName' <<<"$info")
+url=$(jq -r '.url' <<<"$info")
+head_repo=$(jq -r 'if .headRepository and .headRepositoryOwner then "\(.headRepositoryOwner.login)/\(.headRepository.name)" else "" end' <<<"$info")
+if [[ "${head_repo,,}" != "${repo,,}" ]]; then
+  msg="PR from fork not supported: $repo#$number (head: ${head_repo:-unknown})"
+  echo "pr-comments: $msg" >&2
+  "$SELF_DIR/pr-comments-notify" --error "$msg" || true
+  exit 5
+fi
+[[ "$url" =~ ^https://[A-Za-z0-9._~:/?#@!\&=+%-]+$ ]] || url="https://github.com/$repo/pull/$number"
+
+# 2. Find the local clone (CLONE_ROOTS/*/ and CLONE_ROOTS/*/*/), else clone it.
+normalise() { local u="$1"; u="${u#git@github.com:}"; u="${u#https://github.com/}"; echo "${u%.git}"; }
+clone=""
+for root in "${CLONE_ROOTS[@]}"; do
+  for d in "$root"/*/ "$root"/*/*/; do
+    [[ -d "${d}.git" ]] || continue
+    remote=$(git -C "$d" config --get remote.origin.url 2>/dev/null) || continue
+    if [[ "$(normalise "$remote")" == "$repo" ]]; then clone="${d%/}"; break 2; fi
+  done
+done
+if [[ -z "$clone" ]]; then
+  clone="$CLONE_DIR/${repo#*/}"
+  mkdir -p "$CLONE_DIR"
+  gh repo clone "$repo" "$clone" || fail "$repo#$number: gh repo clone failed"
+fi
+
+# 3. Fetch and prepare the worktree (the main checkout is never touched).
+git -C "$clone" fetch origin "$branch" || fail "$repo#$number: git fetch of $branch failed"
+git -C "$clone" worktree prune
+mkdir -p "$WORKTREE_DIR"
+path="$WORKTREE_DIR/$(basename "$clone")-pr-$number"
+state=""
+if [[ -e "$path" ]]; then
+  top=$(git -C "$path" rev-parse --show-toplevel 2>/dev/null || true)
+  if [[ -z "$top" || "$(readlink -f "$top")" != "$(readlink -f "$path")" ]]; then
+    fail "$path exists but is not a git worktree; refusing to touch it" 3
+  fi
+  # The path is only <clone-basename>-pr-<n>: make sure it is a worktree of THIS clone.
+  gitdir_of() { (cd "$1" && readlink -f "$(git rev-parse --git-common-dir)"); }
+  if [[ "$(gitdir_of "$path")" != "$(gitdir_of "$clone")" ]]; then
+    fail "$path belongs to a different repository than $clone; refusing to touch it" 3
+  fi
+  # Remove only when provably clean and fully pushed; any command failure means keep.
+  if st=$(git -C "$path" status --porcelain) && [[ -z "$st" ]] \
+     && ahead=$(git -C "$path" rev-list "origin/$branch..HEAD") && [[ -z "$ahead" ]]; then
+    git -C "$clone" worktree remove --force "$path" || fail "$repo#$number: cannot remove old worktree $path"
+  else
+    state=kept-dirty
+  fi
+fi
+if [[ -z "$state" ]]; then
+  git -C "$clone" worktree add --detach "$path" "origin/$branch" \
+    || fail "$repo#$number: git worktree add failed"
+fi
+
+# 4. Open the terminal.
+printf -v cmd 'cd %q && %sclaude "/angelo-skills:pr-comments %s"' "$path" \
+  "${state:+PR_COMMENTS_WORKTREE_STATE=$state }" "$url"
+launch "$cmd"

@@ -1,0 +1,31 @@
+query($q: String!) {
+  search(query: $q, type: ISSUE, first: 50) {
+    pageInfo { hasNextPage }
+    nodes {
+      ... on PullRequest {
+        number
+        title
+        url
+        repository { nameWithOwner }
+        headRefName
+        headRepository { nameWithOwner }
+        commits(last: 1) { nodes { commit { committedDate } } }
+        reviewThreads(first: 100) {
+          pageInfo { hasNextPage }
+          nodes {
+            isResolved
+            comments(last: 1) { nodes { id author { login __typename } createdAt url } }
+          }
+        }
+        comments(first: 100) {
+          pageInfo { hasNextPage }
+          nodes { id author { login __typename } createdAt url }
+        }
+        reviews(first: 100) {
+          pageInfo { hasNextPage }
+          nodes { id author { login __typename } body createdAt url }
+        }
+      }
+    }
+  }
+}

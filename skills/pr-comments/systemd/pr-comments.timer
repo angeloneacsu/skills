@@ -1,0 +1,9 @@
+[Unit]
+Description=Poll GitHub for new PR comments (pr-comments)
+
+[Timer]
+OnCalendar=@ONCALENDAR@
+Persistent=false
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# notify-send stub: only logs argv to $STUB_LOG (never executes anything).
+echo "notify-send $*" >> "${STUB_LOG:?}"

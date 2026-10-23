@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# systemd-run stub: only logs argv to $STUB_LOG (never executes anything).
+echo "systemd-run $*" >> "${STUB_LOG:?}"
+exit "${SYSTEMD_RUN_EXIT:-0}"
