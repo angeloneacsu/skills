@@ -47,7 +47,7 @@ handled during the session (marking = recorded in local state, nothing posted).
 - PRs where I am only a reviewer / review requested (maybe later).
 - Closed or merged PRs.
 - Bot comments (Greptile, Copilot, Sonar, Dependabot, …).
-- Fixing the team's `lcl-review-fix` skill (it lives in a separate team repo; a separate
+- Fixing an existing team review skill (it lives in a separate repo; a separate
   follow-up PR there can port the GraphQL / general-comment fixes).
 - Any platform other than Linux with a freedesktop notification daemon + systemd user
   units (my machine: Fedora 42, GNOME 48).
@@ -63,7 +63,7 @@ handled during the session (marking = recorded in local state, nothing posted).
 - Silent failure: if `gh` is not authenticated or the API fails, I must find out
   (one notification about the error, not one every 5 minutes).
 
-## Components (in `angeloneacsu/skills`)
+## Components (in this skills repo)
 
 ```
 skills/pr-comments/
@@ -82,10 +82,10 @@ get updated to list the new skill.
 ### Local config — `~/.config/pr-comments/config` (never in the repo)
 
 Keys (example values are mine, shown only to define shape):
-- `orgs` — list, e.g. `local-ch`
+- `orgs` — list, e.g. `my-org`
 - `clone_roots` — dirs searched for an existing clone, matched by `origin` URL
-  (e.g. `~/work/foundation`, `~/work/devops`)
-- `clone_dir` — where a missing repo gets cloned (e.g. `~/work/foundation`)
+  (e.g. `~/src/app`, `~/src/infra`)
+- `clone_dir` — where a missing repo gets cloned (e.g. `~/src`)
 - `worktree_dir` — where temporary PR worktrees go; default `~/work/temp`, worktree
   path `<worktree_dir>/<clone-name>-pr-<number>`
 - `ignore_authors` — extra logins to treat as bots

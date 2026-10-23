@@ -155,12 +155,12 @@ SKILL.md content (frontmatter `name: pr-comments`, description triggering on "ad
 6. `--fix-auth` mode: `gh auth status`; tell user to run `! gh auth login` (or `! gh auth refresh`); re-check; on success `pr-comments-poll --resume`.
 
 - [ ] **Step 1: Write** SKILL.md, README row/section, plugin.json bump.
-- [ ] **Step 2: Verify** `jq . .claude-plugin/plugin.json` exits 0; `bash skills/pr-comments/tests/run.sh` all PASS; `grep -rniE 'local-ch|localsearch|angelo' skills/pr-comments` → no matches.
+- [ ] **Step 2: Verify** `jq . .claude-plugin/plugin.json` exits 0; `bash skills/pr-comments/tests/run.sh` all PASS; `a grep for client-specific org, path and login names over skills/pr-comments` → no matches.
 - [ ] **Step 3: Commit** `git commit -m "pr-comments: skill and docs"`.
 
 ### Task 6: Local setup on this machine (not committed)
 
-- [ ] **Step 1:** `bash skills/pr-comments/scripts/pr-comments-install`; edit `~/.config/pr-comments/config` with `ORGS=(local-ch)`, `CLONE_ROOTS=(~/work/foundation ~/work/devops)`, `CLONE_DIR=~/work/foundation`, `WORKTREE_DIR=~/work/temp`.
+- [ ] **Step 1:** `bash skills/pr-comments/scripts/pr-comments-install`; edit `~/.config/pr-comments/config` with `ORGS=(my-org)`, `CLONE_ROOTS=(~/src)`, `CLONE_DIR=~/src`, `WORKTREE_DIR=~/work/temp`.
 - [ ] **Step 2:** `pr-comments-poll --dry-run` → lists current human comments (or nothing) without error.
 - [ ] **Step 3:** `pr-comments-poll --reset && pr-comments-poll` → wave of pop-ups; click one → terminal opens in `~/work/temp/<repo>-pr-<n>` with the skill running.
 - [ ] **Step 4:** `systemctl --user list-timers pr-comments.timer` → next run within 5 min (during active hours).
