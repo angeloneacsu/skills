@@ -27,11 +27,13 @@ esac
 # shellcheck disable=SC1091
 source "$SRC/lib.sh"
 conf="$(pc_config_file)"
+fresh=0
 if [[ ! -f "$conf" ]]; then
   # Needed to load defaults; kept even if validation below fails.
   mkdir -p "$(dirname "$conf")"
   cp "$SKILL/config.example" "$conf"
-  echo "created $conf: edit $conf (set ORGS, CLONE_ROOTS, ...), then run: systemctl --user restart pr-comments.timer"
+  fresh=1
+  echo "created $conf (placeholder values)"
 fi
 pc_load_config
 
@@ -64,5 +66,9 @@ render "$SKILL/systemd/pr-comments.service" "$UNITS/pr-comments.service"
 render "$SKILL/systemd/pr-comments.timer" "$UNITS/pr-comments.timer"
 
 systemctl --user daemon-reload
+if [[ $fresh -eq 1 ]]; then
+  echo "pr-comments installed, timer NOT enabled yet: edit $conf, then re-run pr-comments-install (set ORGS, CLONE_ROOTS, ...)"
+  exit 0
+fi
 systemctl --user enable --now pr-comments.timer
 echo "pr-comments installed; polling: $oncal"

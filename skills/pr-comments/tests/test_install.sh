@@ -43,8 +43,18 @@ test_install_creates_config_when_absent() {
   install_setup
   out=$("$INSTALL")
   [[ -f "$CONF" ]] || return 1
-  grep -q "edit $CONF" <<<"$out" || { echo "$out"; return 1; }
+  grep -q "edit $CONF, then re-run pr-comments-install" <<<"$out" || { echo "$out"; return 1; }
   grep -qxF 'OnCalendar=Mon..Fri *-*-* 08..18:00/5:00' "$UNITS/pr-comments.timer" || return 1
+  [[ -x "$HOME/.local/bin/pr-comments-poll" ]] || return 1
+}
+
+test_install_fresh_does_not_enable_timer() {
+  install_setup
+  "$INSTALL" >/dev/null
+  ! grep -q 'enable' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+  # second run (config now exists) enables
+  "$INSTALL" >/dev/null
+  grep -qx 'systemctl --user enable --now pr-comments.timer' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
 }
 
 test_install_keeps_existing_config() {
@@ -58,6 +68,7 @@ test_install_keeps_existing_config() {
 
 test_install_enables_timer() {
   install_setup
+  mkdir -p "$(dirname "$CONF")"; echo 'ORGS=(x)' > "$CONF"
   "$INSTALL" >/dev/null
   grep -qx 'systemctl --user daemon-reload' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
   grep -qx 'systemctl --user enable --now pr-comments.timer' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
