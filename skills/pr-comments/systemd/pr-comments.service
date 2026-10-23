@@ -1,0 +1,8 @@
+[Unit]
+Description=Poll GitHub for new PR comments (pr-comments)
+
+[Service]
+Type=oneshot
+# PATH is captured at install time: user units do not get the interactive PATH.
+Environment="PATH=@PATH@"
+ExecStart=%h/.local/bin/pr-comments-poll

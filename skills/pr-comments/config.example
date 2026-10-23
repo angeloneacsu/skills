@@ -22,6 +22,7 @@ TERMINAL="gnome-terminal --"
 # Poll interval in minutes.
 INTERVAL_MIN=5
 
-# Days and hours during which polling is active.
-ACTIVE_DAYS="Mon-Fri"
-ACTIVE_HOURS="08:00-19:00"
+# Days and hours (systemd OnCalendar syntax) during which polling is active;
+# "08..18" with a 5 minute interval means the last poll runs at 18:55.
+ACTIVE_DAYS="Mon..Fri"
+ACTIVE_HOURS="08..18"

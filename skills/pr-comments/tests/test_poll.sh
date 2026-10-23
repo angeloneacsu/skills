@@ -24,7 +24,7 @@ test_poll_first_run_wave() {
   [[ $(count_log '^systemd-run') == 1 ]] || { cat "$STUB_LOG"; return 1; }
   grep '^systemd-run' "$STUB_LOG" | grep -q -- 'pr-comments-notify my-org/svc 12 ' || { cat "$STUB_LOG"; return 1; }
   grep '^systemd-run' "$STUB_LOG" | grep -q -- '3 new comment(s) from reviewer' || { cat "$STUB_LOG"; return 1; }
-  grep '^systemd-run' "$STUB_LOG" | grep -q -- '--user --collect --quiet /' || { cat "$STUB_LOG"; return 1; }
+  grep '^systemd-run' "$STUB_LOG" | grep -q -- '--user --collect --quiet --setenv=PATH=' || { cat "$STUB_LOG"; return 1; }
   [[ "$(sorted_seen)" == "C1 R1 T1" ]] || { echo "seen: $(sorted_seen)"; return 1; }
 }
 
@@ -178,4 +178,10 @@ test_poll_failed_spawn_auth_still_stops_timer() {
   [[ $rc -eq 3 ]] || return 1
   grep -qx 'systemctl --user stop pr-comments.timer' "$STUB_LOG" || return 1
   [[ ! -e "$STATE/auth-paused" ]]
+}
+
+test_poll_spawn_passes_path() {
+  poll_setup
+  "$POLL" 2>/dev/null
+  grep '^systemd-run' "$STUB_LOG" | grep -qF -- "--setenv=PATH=$PATH" || { cat "$STUB_LOG"; return 1; }
 }

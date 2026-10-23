@@ -32,8 +32,8 @@ pc_load_config() {
   [[ -n "$WORKTREE_DIR" ]] || WORKTREE_DIR="$HOME/work/temp"
   [[ -n "$TERMINAL" ]] || TERMINAL="gnome-terminal --"
   [[ -n "$INTERVAL_MIN" ]] || INTERVAL_MIN=5
-  [[ -n "$ACTIVE_DAYS" ]] || ACTIVE_DAYS="Mon-Fri"
-  [[ -n "$ACTIVE_HOURS" ]] || ACTIVE_HOURS="08:00-19:00"
+  [[ -n "$ACTIVE_DAYS" ]] || ACTIVE_DAYS="Mon..Fri"
+  [[ -n "$ACTIVE_HOURS" ]] || ACTIVE_HOURS="08..18"
   [[ -n "$CLONE_DIR" ]] || CLONE_DIR="$HOME/src"
   return 0
 }

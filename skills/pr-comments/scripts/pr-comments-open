@@ -6,8 +6,10 @@
 set -euo pipefail
 
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
-# shellcheck source=lib.sh
-source "$SELF_DIR/lib.sh"
+SHARE_DIR="$HOME/.local/share/pr-comments"
+res() { if [[ -e "$SELF_DIR/$1" ]]; then echo "$SELF_DIR/$1"; else echo "$SHARE_DIR/$1"; fi; }
+# shellcheck disable=SC1090
+source "$(res lib.sh)"
 pc_load_config || exit 2
 
 # Report a failure visibly (the user just clicked a notification) and exit.
