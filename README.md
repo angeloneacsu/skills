@@ -36,6 +36,20 @@ cp -r skills/skills/<name> ~/.claude/skills/        # user-level
 | [gcp-iam-analyzer](skills/gcp-iam-analyzer/SKILL.md) | gcloud / gsutil / bq commands → exact IAM permissions, predefined vs custom roles, and a ready Terraform snippet (google provider, or the repo's own IAM tfvars shape). |
 | [k8s-scoring-fix](skills/k8s-scoring-fix/SKILL.md) | Kubernetes resource-efficiency fixes on helm / kustomize stacks: CPU/memory right-sizing from real usage, probes (Spring Boot, OIDC-protected frontends, Cloud SQL proxy), non-root hardening, validated with `kubectl diff`, plus technical / executive / plain-English reports. |
 | [java-wildfly-performance](skills/java-wildfly-performance/SKILL.md) | JVM (JDK 17/21/25) + WildFly (Undertow, io, IronJacamar) tuning for heavy-load Jakarta EE apps. Scripts: unified-GC-log analyzer, thread-dump analyzer, `standalone.xml` validator, JDK-aware JVM flag recommender. |
+| [pr-comments](skills/pr-comments/SKILL.md) | Desktop notification when a human comments on one of your open PRs (systemd user timer + `gh`); clicking opens a terminal with Claude Code in a temporary detached worktree, where the skill walks through unresolved comments one by one (fix / modify / skip / mark handled) and posts nothing without your OK. Linux + systemd + `notify-send` only. |
+
+### pr-comments setup
+Linux with systemd user units, `gh` (authenticated), `jq`, `notify-send`. Scripts are copied out of the
+plugin cache, so re-run the installer after a plugin update:
+```bash
+bash skills/pr-comments/scripts/pr-comments-install    # path inside your clone / the plugin cache
+$EDITOR ~/.config/pr-comments/config                   # orgs, clone roots, worktree dir, terminal, schedule
+pr-comments-poll --dry-run                             # show what would be notified
+```
+Installs scripts to `~/.local/bin`, data to `~/.local/share/pr-comments`, and the `pr-comments.timer`
+(default every 5 min, Mon-Fri 08:00-19:00). First run notifies every actionable comment, one notification
+per PR; `pr-comments-poll --reset [--all]` replays that wave. After an auth error the timer is stopped;
+clicking the notification opens `/pr-comments --fix-auth`, which ends with `pr-comments-poll --resume`.
 
 ### epic-autopilot extras
 - `skills/epic-autopilot/templates/HANDOFF-TEMPLATE.md` — copy per epic as the rolling handoff
