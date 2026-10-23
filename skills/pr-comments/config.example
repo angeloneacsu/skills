@@ -16,7 +16,8 @@ WORKTREE_DIR=~/work/temp
 # Comment authors to ignore in addition to bots (GitHub logins).
 IGNORE_AUTHORS=(some-noisy-login)
 
-# Terminal launcher used to open a PR session; the command is appended.
+# Terminal launcher used to open a PR session; the command and its arguments are appended
+# (konsole -e, terminator -x, gnome-terminal --).
 TERMINAL="gnome-terminal --"
 
 # Poll interval in minutes.
@@ -32,6 +33,7 @@ ACTIVE_HOURS="08..18"
 # queried there (pr-comments-poll --emit); notifications show here; a click opens TERMINAL
 # here with an ssh -t session. ORGS / CLONE_* / WORKTREE_DIR / IGNORE_AUTHORS are then
 # read from the remote machine's config, not this one.
+# Bare destination as in "ssh <REMOTE>" (host or ~/.ssh/config alias), without "ssh".
 REMOTE=""
 
 # yes: this machine runs the poll timer. no: on the remote machine of such a desktop.

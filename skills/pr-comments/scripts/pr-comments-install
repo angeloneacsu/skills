@@ -44,6 +44,10 @@ if [[ ! "$INTERVAL_MIN" =~ ^[1-9][0-9]*$ ]]; then
   echo "pr-comments-install: INTERVAL_MIN must be a positive integer, got '$INTERVAL_MIN' (in $conf); nothing installed" >&2
   exit 65
 fi
+if [[ -n "$REMOTE" && ! "$REMOTE" =~ ^[A-Za-z0-9_.@:-]+$ ]]; then
+  echo "pr-comments-install: REMOTE must be a bare ssh destination like 'myvm' or 'me@host', got '$REMOTE' (in $conf); nothing installed" >&2
+  exit 65
+fi
 if [[ "$RUN_TIMER" != yes && "$RUN_TIMER" != no ]]; then
   echo "pr-comments-install: RUN_TIMER must be yes or no, got '$RUN_TIMER' (in $conf); nothing installed" >&2
   exit 65

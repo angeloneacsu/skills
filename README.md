@@ -57,7 +57,7 @@ until you have edited the config and re-run the installer.
 
 **Desktop on another machine** (e.g. you work over ssh in a VM without a graphical session): install on
 both. On the machine with `gh` and the clones set `RUN_TIMER=no` (no timer there). On the desktop set
-`REMOTE=<ssh destination>` and `TERMINAL` (e.g. `konsole -e`); there the timer runs
+`REMOTE=<ssh destination>` (bare, as in `ssh <dest>`) and `TERMINAL` (e.g. `konsole -e`, `terminator -x`); there the timer runs
 `ssh REMOTE pr-comments-poll --emit`, shows the notifications and keeps the seen-state, and a click opens a
 local terminal with `ssh -t REMOTE pr-comments-open --here …`. The desktop needs `ssh` with a key usable
 from a systemd user unit (the installer checks), `jq` and `notify-send`; it does not need `gh`.

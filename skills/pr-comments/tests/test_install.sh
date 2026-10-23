@@ -155,3 +155,11 @@ test_install_remote_ssh_failure_warns() {
   grep -q "warning: 'ssh vm' fails" <<<"$err" || { echo "$err"; return 1; }
   grep -qx 'systemctl --user enable --now pr-comments.timer' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
 }
+
+test_install_rejects_remote_with_ssh_prefix() {
+  install_setup
+  mkdir -p "$(dirname "$CONF")"; printf 'REMOTE="ssh myvm"\n' > "$CONF"
+  rc=0; err=$("$INSTALL" 2>&1 >/dev/null) || rc=$?
+  [[ $rc -ne 0 ]] && grep -q 'bare ssh destination' <<<"$err" || { echo "$err"; return 1; }
+  [[ ! -e "$HOME/.local" && ! -s "$STUB_LOG" ]]
+}
