@@ -50,11 +50,11 @@
 
 Filter rules (from spec): human = author non-null, `__typename != "Bot"`, login not ending `[bot]`, login ≠ `$me`, not in `$ignore`. Threads: `isResolved == false` and last comment by a human → item with the **last comment's** id (so a new reply = new id = new notification). Conversation comments and non-empty review bodies: only if `createdAt` > my last activity on that PR (max of my comments/reviews createdAt and last commit date). Anything whose id is in `handled` is dropped.
 
-- [ ] **Step 1: Write fixture + failing tests** in `tests/test_filter.sh` (each test is a function, `run.sh` sources all `test_*.sh` and runs functions named `test_*`, printing PASS/FAIL, exit 1 on any FAIL). Fixture: one PR `my-org/svc#12` with: unresolved thread last-commented by `andi` (id `T1`), resolved thread (`T2`), unresolved thread last-commented by me (`T3`), thread by `greptile-apps[bot]` (`T4`), thread by `__typename: Bot` login `sonar` (`T5`), comment by null author (`C0`), conversation comment by `andi` after my last commit (`C1`), conversation comment by `andi` before my last commit (`C2`), review body `"pls fix"` by `andi` after (`R1`), review with empty body (`R2`); a second page flag `hasNextPage: true` on reviewThreads.
+- [ ] **Step 1: Write fixture + failing tests** in `tests/test_filter.sh` (each test is a function, `run.sh` sources all `test_*.sh` and runs functions named `test_*`, printing PASS/FAIL, exit 1 on any FAIL). Fixture: one PR `my-org/svc#12` with: unresolved thread last-commented by `reviewer` (id `T1`), resolved thread (`T2`), unresolved thread last-commented by me (`T3`), thread by `greptile-apps[bot]` (`T4`), thread by `__typename: Bot` login `sonar` (`T5`), comment by null author (`C0`), conversation comment by `reviewer` after my last commit (`C1`), conversation comment by `reviewer` before my last commit (`C2`), review body `"pls fix"` by `reviewer` after (`R1`), review with empty body (`R2`); a second page flag `hasNextPage: true` on reviewThreads.
   - `test_filter_humans_unresolved`: ids == `T1 C1 R1` (in that order).
-  - `test_filter_ignore_list`: `--argjson ignore '["andi"]'` → empty.
+  - `test_filter_ignore_list`: `--argjson ignore '["reviewer"]'` → empty.
   - `test_filter_handled`: handled contains `C1` → ids == `T1 R1`.
-  - `test_filter_item_shape`: item `T1` has `repo=="my-org/svc"`, `number==12`, `kind=="thread"`, `author=="andi"`.
+  - `test_filter_item_shape`: item `T1` has `repo=="my-org/svc"`, `number==12`, `kind=="thread"`, `author=="reviewer"`.
 - [ ] **Step 2: Run** `bash skills/pr-comments/tests/run.sh` → FAIL (filter.jq missing).
 - [ ] **Step 3: Implement** `filter.jq`, `query.graphql`, `lib.sh`, `config.example` (every key documented with a comment and placeholder value).
 - [ ] **Step 4: Run** `bash skills/pr-comments/tests/run.sh` → all PASS.
@@ -77,7 +77,7 @@ Filter rules (from spec): human = author non-null, `__typename != "Bot"`, login 
 Stubs record their argv to `$STUB_LOG`; `gh` stub returns `$GH_FIXTURE` for graphql, `$GH_LOGIN` for user, and exits with `$GH_EXIT`/`$GH_STDERR` when set. Tests run with `HOME`, `XDG_*` pointed at a `mktemp -d`.
 
 - [ ] **Step 1: Write failing tests** in `tests/test_poll.sh`:
-  - `test_poll_first_run_wave`: empty state → exactly one `systemd-run` call for `my-org/svc 12`, summary starts with `"3 new comment(s) from andi"`; seen contains `T1 C1 R1`.
+  - `test_poll_first_run_wave`: empty state → exactly one `systemd-run` call for `my-org/svc 12`, summary starts with `"3 new comment(s) from reviewer"`; seen contains `T1 C1 R1`.
   - `test_poll_no_repeat`: second run with same fixture → zero `systemd-run` calls.
   - `test_poll_new_reply_notifies`: fixture with T1's last comment id changed to `T1b` → one call, summary `"1 new comment(s)…"`.
   - `test_poll_reset_wave_again`: after a run, `--reset` then run → one call again; handled file untouched; `--reset --all` empties handled.
