@@ -1,0 +1,27 @@
+# pr-comments config. Copy to ${XDG_CONFIG_HOME:-~/.config}/pr-comments/config
+# This file is sourced by bash. Unset keys fall back to the defaults shown.
+
+# GitHub organisations whose open PRs (authored by you) are polled.
+ORGS=(my-org)
+
+# Directories scanned for local clones (one level deep) to map a PR repo to a clone.
+CLONE_ROOTS=(~/src)
+
+# Fallback directory where a missing clone is created.
+CLONE_DIR=~/src
+
+# Where PR worktrees are created: <WORKTREE_DIR>/<clone-name>-pr-<number>
+WORKTREE_DIR=~/work/temp
+
+# Comment authors to ignore in addition to bots (GitHub logins).
+IGNORE_AUTHORS=(some-noisy-login)
+
+# Terminal launcher used to open a PR session; the command is appended.
+TERMINAL="gnome-terminal --"
+
+# Poll interval in minutes.
+INTERVAL_MIN=5
+
+# Days and hours during which polling is active.
+ACTIVE_DAYS="Mon-Fri"
+ACTIVE_HOURS="08:00-19:00"
