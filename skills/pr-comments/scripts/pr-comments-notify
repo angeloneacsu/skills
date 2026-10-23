@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Desktop notification for pr-comments. Clicking "Open" starts pr-comments-open.
+# Usage: pr-comments-notify <repo> <number> <url> <summary>
+#        pr-comments-notify --auth <message>
+#        pr-comments-notify --error <message>
+set -euo pipefail
+
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+OPEN="$SELF_DIR/pr-comments-open"
+
+case "${1:-}" in
+  --error)
+    notify-send --app-name=pr-comments "pr-comments error" "${2:-}"
+    ;;
+  --auth)
+    action=$(notify-send --app-name=pr-comments -A default=Open --wait \
+      "pr-comments: GitHub login needed" "${2:-}") || true
+    [[ "$action" == default ]] && exec "$OPEN" --fix-auth
+    ;;
+  *)
+    repo="${1:?repo}" number="${2:?number}" url="${3:-}" summary="${4:-}"
+    action=$(notify-send --app-name=pr-comments -A default=Open --wait \
+      "$repo#$number" "$summary${url:+$'\n'$url}") || true
+    [[ "$action" == default ]] && exec "$OPEN" "$repo" "$number"
+    ;;
+esac
+exit 0

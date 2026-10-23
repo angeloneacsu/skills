@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Poll GitHub for new human comments on my open PRs; one notification per PR.
+# Usage: pr-comments-poll [--dry-run | --reset [--all] | --resume | --mark-handled ID...]
+set -euo pipefail
+
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+SHARE_DIR="$HOME/.local/share/pr-comments"
+res() { if [[ -e "$SELF_DIR/$1" ]]; then echo "$SELF_DIR/$1"; else echo "$SHARE_DIR/$1"; fi; }
+# shellcheck disable=SC1090
+source "$(res lib.sh)"
+QUERY="$(res query.graphql)"
+FILTER="$(res filter.jq)"
+NOTIFY="$SELF_DIR/pr-comments-notify"
+
+mode=run all=0 dry=0 ids=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) dry=1 ;;
+    --reset) mode=reset ;;
+    --all) all=1 ;;
+    --resume) mode=resume ;;
+    --mark-handled) mode=mark; shift; ids=("$@"); break ;;
+    *) echo "pr-comments-poll: unknown argument: $1" >&2; exit 64 ;;
+  esac
+  shift
+done
+
+spawn_notify() { systemd-run --user --collect --quiet "$NOTIFY" "$@"; }
+
+case "$mode" in
+  reset)
+    : > "$PC_SEEN"
+    [[ $all -eq 1 ]] && : > "$PC_HANDLED"
+    exit 0 ;;
+  mark)
+    printf '%s\n' "${ids[@]}" >> "$PC_HANDLED"
+    exit 0 ;;
+  resume)
+    rm -f "$PC_AUTH"
+    systemctl --user start pr-comments.timer ;;
+esac
+
+if [[ -e "$PC_AUTH" ]]; then
+  echo "pr-comments: paused after an auth error; run 'pr-comments-poll --resume' after 'gh auth login'" >&2
+  exit 3
+fi
+
+pc_load_config
+
+errf="$(mktemp)"; trap 'rm -f "$errf"' EXIT
+
+# Classify a gh failure: auth (stop timer, exit 3) or other (exit 4). Never returns.
+gh_failed() {
+  local msg; msg="$(tr '\n' ' ' < "$errf")"
+  local auth=0
+  if grep -Eqi 'resolve host|network|timeout|timed out|dial tcp|connection|unreachable|EOF' "$errf"; then
+    auth=0   # connectivity problems are not auth problems (gh auth status fails offline too)
+  elif grep -Eqi '401|Bad credentials|not logged|authentication' "$errf" \
+       || ! gh auth status >/dev/null 2>&1; then
+    auth=1
+  fi
+  if [[ $auth -eq 1 ]]; then
+    if [[ ! -e "$PC_AUTH" ]]; then
+      : > "$PC_AUTH"
+      spawn_notify --auth "GitHub authentication failed; polling paused. Run: gh auth login"
+      systemctl --user stop pr-comments.timer
+    fi
+    echo "pr-comments: auth error: $msg" >&2
+    exit 3
+  fi
+  if [[ ! -e "$PC_ERROR" ]]; then
+    : > "$PC_ERROR"
+    spawn_notify --error "gh failed: ${msg:0:200}"
+  fi
+  echo "pr-comments: gh error: $msg" >&2
+  exit 4
+}
+
+me=$(gh api user -q .login 2>"$errf") || gh_failed
+ignore=$(jq -nc '$ARGS.positional' --args "${IGNORE_AUTHORS[@]}")
+
+items=$(mktemp); trap 'rm -f "$errf" "$items"' EXIT
+for org in "${ORGS[@]}"; do
+  resp=$(gh api graphql -F query=@"$QUERY" -f q="is:pr is:open author:@me org:$org" 2>"$errf") || gh_failed
+  pc_warn_truncated <<<"$resp"
+  jq -c --arg me "$me" --argjson ignore "$ignore" \
+    --slurpfile handled <(pc_handled_json "$PC_HANDLED") \
+    -f "$FILTER" <<<"$resp" >> "$items"
+done
+
+new=$(jq -c --slurpfile seen <(pc_handled_json "$PC_SEEN") \
+  'select(.id as $i | ($seen | index($i)) | not)' "$items")
+
+if [[ $dry -eq 1 ]]; then
+  [[ -z "$new" ]] || jq -r '"\(.repo)#\(.number) \(.author) \(.kind) \(.url)"' <<<"$new"
+  exit 0
+fi
+
+rm -f "$PC_ERROR"
+[[ -n "$new" ]] || exit 0
+
+# One notification per PR; a PR's ids are marked seen only once its notifier spawned.
+while IFS=$'\t' read -r repo number url summary ids_csv; do
+  if spawn_notify "$repo" "$number" "$url" "$summary"; then
+    tr ',' '\n' <<<"$ids_csv" >> "$PC_SEEN"
+  else
+    echo "pr-comments: failed to spawn notifier for $repo#$number" >&2
+  fi
+done < <(jq -rs '
+  group_by(.repo + "#" + (.number | tostring))[]
+  | (reduce .[].author as $a ([]; if index($a) then . else . + [$a] end)) as $authors
+  | [.[0].repo, .[0].number, .[0].url,
+     "\(length) new comment(s) from \($authors | join(", ")) — \(.[0].title)",
+     ([.[].id] | join(","))] | @tsv' <<<"$new")
