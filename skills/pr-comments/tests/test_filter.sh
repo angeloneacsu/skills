@@ -22,7 +22,7 @@ test_filter_humans_unresolved() {
   [[ "$got" == "T1 C1 R1" ]] || { echo "got: $got"; return 1; }
 }
 test_filter_ignore_list() {
-  local got; got=$(run_filter '["andi"]')
+  local got; got=$(run_filter '["reviewer"]')
   [[ -z "$got" ]] || { echo "got: $got"; return 1; }
 }
 test_filter_handled() {
@@ -31,7 +31,7 @@ test_filter_handled() {
 }
 test_filter_item_shape() {
   run_filter '[]' | jq -e 'select(.id=="T1")
-    | .repo=="my-org/svc" and .number==12 and .kind=="thread" and .author=="andi"
+    | .repo=="my-org/svc" and .number==12 and .kind=="thread" and .author=="reviewer"
       and .title=="Add widget" and (.url|startswith("https://")) and has("createdAt")' >/dev/null
 }
 test_filter_null_author_skipped() {

@@ -14,7 +14,8 @@ for f in "$HERE"/test_*.sh; do
   after=$(declare -F | awk '{print $3}' | grep '^test_' | sort)
   for t in $(comm -13 <(echo "$before") <(echo "$after")); do
     total=$((total + 1))
-    if out=$( (set -e; "$t") 2>&1 ); then
+    out=$( (set -e; "$t") 2>&1 ); rc=$?
+    if [[ $rc -eq 0 ]]; then
       echo "PASS $t"
     else
       echo "FAIL $t"; echo "$out" | sed 's/^/    /'; fail=$((fail + 1))
