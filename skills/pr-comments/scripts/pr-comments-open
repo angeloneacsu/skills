@@ -3,7 +3,8 @@
 # Usage: pr-comments-open <owner/repo> <number>
 #        pr-comments-open --fix-auth
 # Exit codes: 2 config missing, 3 bad usage/clone/worktree problem, 5 PR from fork.
-set -euo pipefail
+set -Eeuo pipefail
+shopt -s execfail   # a failing exec (missing terminal) must reach the ERR trap
 
 SELF_DIR="$(dirname "$(readlink -f "$0")")"
 SHARE_DIR="$HOME/.local/share/pr-comments"
@@ -13,7 +14,11 @@ source "$(res lib.sh)"
 pc_load_config || exit 2
 
 # Report a failure visibly (the user just clicked a notification) and exit.
-fail() { echo "pr-comments: $1" >&2; "$SELF_DIR/pr-comments-notify" --error "$1" || true; exit "${2:-1}"; }
+fail() { trap - ERR; echo "pr-comments: $1" >&2; "$SELF_DIR/pr-comments-notify" --error "$1" || true; exit "${2:-1}"; }
+
+# -E makes subshells ($(...)) inherit the trap; only the main shell may notify.
+PC_MAIN=$BASHPID
+trap '[[ $BASHPID == "$PC_MAIN" ]] && fail "unexpected error (line $LINENO)"' ERR
 
 launch() { # <shell command>; TERMINAL is intentionally word-split (command prefix)
   # shellcheck disable=SC2086
@@ -21,7 +26,7 @@ launch() { # <shell command>; TERMINAL is intentionally word-split (command pref
 }
 
 if [[ "${1:-}" == --fix-auth ]]; then
-  printf -v cmd 'cd %q && claude "/pr-comments --fix-auth"' "$HOME"
+  printf -v cmd 'cd %q && claude "/angelo-skills:pr-comments --fix-auth"' "$HOME"
   launch "$cmd"
 fi
 
@@ -70,8 +75,12 @@ state=""
 if [[ -e "$path" ]]; then
   top=$(git -C "$path" rev-parse --show-toplevel 2>/dev/null || true)
   if [[ -z "$top" || "$(readlink -f "$top")" != "$(readlink -f "$path")" ]]; then
-    echo "pr-comments: $path exists but is not a git worktree; refusing to touch it" >&2
-    exit 3
+    fail "$path exists but is not a git worktree; refusing to touch it" 3
+  fi
+  # The path is only <clone-basename>-pr-<n>: make sure it is a worktree of THIS clone.
+  gitdir_of() { (cd "$1" && readlink -f "$(git rev-parse --git-common-dir)"); }
+  if [[ "$(gitdir_of "$path")" != "$(gitdir_of "$clone")" ]]; then
+    fail "$path belongs to a different repository than $clone; refusing to touch it" 3
   fi
   # Remove only when provably clean and fully pushed; any command failure means keep.
   if st=$(git -C "$path" status --porcelain) && [[ -z "$st" ]] \
@@ -87,6 +96,6 @@ if [[ -z "$state" ]]; then
 fi
 
 # 4. Open the terminal.
-printf -v cmd 'cd %q && %sclaude "/pr-comments %s"' "$path" \
+printf -v cmd 'cd %q && %sclaude "/angelo-skills:pr-comments %s"' "$path" \
   "${state:+PR_COMMENTS_WORKTREE_STATE=$state }" "$url"
 launch "$cmd"

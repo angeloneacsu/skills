@@ -49,7 +49,11 @@ pr-comments-poll --dry-run                             # show what would be noti
 Installs scripts to `~/.local/bin`, data to `~/.local/share/pr-comments`, and the `pr-comments.timer`
 (default every 5 min, Mon-Fri 08:00-19:00). First run notifies every actionable comment, one notification
 per PR; `pr-comments-poll --reset [--all]` replays that wave. After an auth error the timer is stopped;
-clicking the notification opens `/pr-comments --fix-auth`, which ends with `pr-comments-poll --resume`.
+clicking the notification opens `/angelo-skills:pr-comments --fix-auth`, which ends with `pr-comments-poll --resume`
+(the poller also resumes by itself once `gh auth status` passes again). The terminal runs the namespaced
+plugin form `/angelo-skills:pr-comments`; if you installed the skill manually as a user skill
+(`~/.claude/skills/`), the plain `/pr-comments` works instead. On a first install the timer is not enabled
+until you have edited the config and re-run the installer.
 
 ### epic-autopilot extras
 - `skills/epic-autopilot/templates/HANDOFF-TEMPLATE.md` — copy per epic as the rolling handoff

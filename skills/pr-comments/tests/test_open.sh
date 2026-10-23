@@ -51,7 +51,7 @@ test_open_launches_terminal() {
   open_setup
   "$OPEN" my-org/svc 12
   grep '^gnome-terminal' "$STUB_LOG" | grep -q -- "cd $WT/svc-pr-12" || { cat "$STUB_LOG"; return 1; }
-  grep '^gnome-terminal' "$STUB_LOG" | grep -q -- '/pr-comments https://github.com/my-org/svc/pull/12' || { cat "$STUB_LOG"; return 1; }
+  grep '^gnome-terminal' "$STUB_LOG" | grep -q -- '/angelo-skills:pr-comments https://github.com/my-org/svc/pull/12' || { cat "$STUB_LOG"; return 1; }
   ! grep -q 'PR_COMMENTS_WORKTREE_STATE' "$STUB_LOG" || return 1
 }
 
@@ -95,7 +95,7 @@ test_open_fork_rejected() {
 test_open_fix_auth() {
   open_setup
   "$OPEN" --fix-auth
-  grep '^gnome-terminal' "$STUB_LOG" | grep -q -- '/pr-comments --fix-auth' || { cat "$STUB_LOG"; return 1; }
+  grep '^gnome-terminal' "$STUB_LOG" | grep -q -- '/angelo-skills:pr-comments --fix-auth' || { cat "$STUB_LOG"; return 1; }
   grep '^gnome-terminal' "$STUB_LOG" | grep -q -- "cd $HOME" || { cat "$STUB_LOG"; return 1; }
 }
 
@@ -127,5 +127,43 @@ test_open_pr_view_failure_notifies() {
   "$OPEN" my-org/svc 12 2>/dev/null || rc=$?
   [[ $rc -ne 0 ]] || return 1
   [[ $(grep -c '^notify-send .*my-org/svc#12' "$STUB_LOG") == 1 ]] || { cat "$STUB_LOG"; return 1; }
+  ! grep -q '^gnome-terminal' "$STUB_LOG" || return 1
+}
+
+test_open_foreign_worktree_at_path_fails() {
+  open_setup
+  # a second repo with the same basename; its worktree sits where ours would go
+  local other="$T/other/svc"
+  mkdir -p "$T/other"; git clone -q "$ORIGIN" "$other"
+  git -C "$other" config user.name t; git -C "$other" config user.email t@example.com
+  mkdir -p "$WT"
+  git -C "$other" worktree add -q --detach "$WT/svc-pr-12" origin/main
+  local before; before=$(git -C "$WT/svc-pr-12" rev-parse HEAD)
+  local rc=0
+  "$OPEN" my-org/svc 12 2>/dev/null || rc=$?
+  [[ $rc -ne 0 ]] || return 1
+  [[ -d "$WT/svc-pr-12" && $(git -C "$WT/svc-pr-12" rev-parse HEAD) == "$before" ]] || return 1
+  git -C "$other" worktree list | grep -q 'svc-pr-12' || return 1
+  [[ $(grep -c '^notify-send .*different repository' "$STUB_LOG") == 1 ]] || { cat "$STUB_LOG"; return 1; }
+  ! grep -q '^gnome-terminal' "$STUB_LOG" || return 1
+}
+
+test_open_non_worktree_dir_notifies() {
+  open_setup
+  mkdir -p "$WT/svc-pr-12"; echo x > "$WT/svc-pr-12/keep"
+  local rc=0
+  "$OPEN" my-org/svc 12 2>/dev/null || rc=$?
+  [[ $rc -ne 0 && -f "$WT/svc-pr-12/keep" ]] || return 1
+  [[ $(grep -c '^notify-send .*not a git worktree' "$STUB_LOG") == 1 ]] || { cat "$STUB_LOG"; return 1; }
+  ! grep -q '^gnome-terminal' "$STUB_LOG" || return 1
+}
+
+test_open_unexpected_error_notifies_once() {
+  open_setup
+  export GH_PR_JSON='not json'
+  local rc=0
+  "$OPEN" my-org/svc 12 2>/dev/null || rc=$?
+  [[ $rc -ne 0 ]] || return 1
+  [[ $(grep -c '^notify-send .*unexpected error' "$STUB_LOG") == 1 ]] || { cat "$STUB_LOG"; return 1; }
   ! grep -q '^gnome-terminal' "$STUB_LOG" || return 1
 }

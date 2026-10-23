@@ -6,6 +6,9 @@ argument-hint: "<pr-url> | --fix-auth"
 
 # pr-comments
 
+Invocation: the notification opens `claude "/angelo-skills:pr-comments <url>"` (plugin install). Both forms work:
+`/angelo-skills:pr-comments` when installed as a plugin, plain `/pr-comments` when installed manually as a user skill.
+
 Interactive session for one PR. The poller (`pr-comments-poll`, systemd user timer) found new human
 feedback, and `pr-comments-open` created a temporary **detached** worktree at `origin/<branch>` and
 started this session in it. Never touch the main clone's checkout or working tree.
