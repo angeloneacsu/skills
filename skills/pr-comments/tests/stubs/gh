@@ -9,4 +9,6 @@ fi
 case "${1:-} ${2:-}" in
   "api user") echo "${GH_LOGIN:-me}" ;;
   "api graphql") cat "${GH_FIXTURE:?}" ;;
+  "pr view") echo "${GH_PR_JSON:?}" ;;
+  "repo clone") git clone -q "${GH_CLONE_SRC:?}" "${4:?}" ;;
 esac

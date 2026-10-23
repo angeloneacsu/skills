@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Click handler: prepare a detached worktree for a PR and open Claude Code in a terminal.
+# Usage: pr-comments-open <owner/repo> <number>
+#        pr-comments-open --fix-auth
+# Exit codes: 2 config missing, 3 bad usage/clone/worktree problem, 5 PR from fork.
+set -euo pipefail
+
+SELF_DIR="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=lib.sh
+source "$SELF_DIR/lib.sh"
+pc_load_config || exit 2
+
+launch() { # <shell command>; TERMINAL is intentionally word-split (command prefix)
+  # shellcheck disable=SC2086
+  exec $TERMINAL bash -lc "$1"
+}
+
+if [[ "${1:-}" == --fix-auth ]]; then
+  printf -v cmd 'cd %q && claude "/pr-comments --fix-auth"' "$HOME"
+  launch "$cmd"
+fi
+
+repo="${1:-}" number="${2:-}"
+if [[ ! "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ || ! "$number" =~ ^[0-9]+$ ]]; then
+  echo "usage: pr-comments-open <owner/repo> <number> | --fix-auth" >&2
+  exit 3
+fi
+
+# 1. PR metadata; reject PRs whose head lives in a fork.
+info=$(gh pr view "$number" -R "$repo" --json headRefName,headRepository,headRepositoryOwner,url)
+branch=$(jq -r '.headRefName' <<<"$info")
+url=$(jq -r '.url' <<<"$info")
+head_repo=$(jq -r 'if .headRepository and .headRepositoryOwner then "\(.headRepositoryOwner.login)/\(.headRepository.name)" else "" end' <<<"$info")
+if [[ "${head_repo,,}" != "${repo,,}" ]]; then
+  msg="PR from fork not supported: $repo#$number (head: ${head_repo:-unknown})"
+  echo "pr-comments: $msg" >&2
+  "$SELF_DIR/pr-comments-notify" --error "$msg" || true
+  exit 5
+fi
+[[ "$url" =~ ^https://[A-Za-z0-9._~:/?#@!\&=+%-]+$ ]] || url="https://github.com/$repo/pull/$number"
+
+# 2. Find the local clone (CLONE_ROOTS/*/ and CLONE_ROOTS/*/*/), else clone it.
+normalise() { local u="$1"; u="${u#git@github.com:}"; u="${u#https://github.com/}"; echo "${u%.git}"; }
+clone=""
+for root in "${CLONE_ROOTS[@]}"; do
+  for d in "$root"/*/ "$root"/*/*/; do
+    [[ -e "${d}.git" ]] || continue
+    remote=$(git -C "$d" config --get remote.origin.url 2>/dev/null) || continue
+    if [[ "$(normalise "$remote")" == "$repo" ]]; then clone="${d%/}"; break 2; fi
+  done
+done
+if [[ -z "$clone" ]]; then
+  clone="$CLONE_DIR/${repo#*/}"
+  mkdir -p "$CLONE_DIR"
+  gh repo clone "$repo" "$clone"
+fi
+
+# 3. Fetch and prepare the worktree (the main checkout is never touched).
+git -C "$clone" fetch origin "$branch"
+git -C "$clone" worktree prune
+mkdir -p "$WORKTREE_DIR"
+path="$WORKTREE_DIR/$(basename "$clone")-pr-$number"
+state=""
+if [[ -e "$path" ]]; then
+  top=$(git -C "$path" rev-parse --show-toplevel 2>/dev/null || true)
+  if [[ -z "$top" || "$(readlink -f "$top")" != "$(readlink -f "$path")" ]]; then
+    echo "pr-comments: $path exists but is not a git worktree; refusing to touch it" >&2
+    exit 3
+  fi
+  if [[ -z "$(git -C "$path" status --porcelain)" && \
+        -z "$(git -C "$path" rev-list "origin/$branch..HEAD" 2>/dev/null)" ]]; then
+    git -C "$clone" worktree remove --force "$path"
+  else
+    state=kept-dirty
+  fi
+fi
+if [[ -z "$state" ]]; then
+  git -C "$clone" worktree add --detach "$path" "origin/$branch"
+fi
+
+# 4. Open the terminal.
+printf -v cmd 'cd %q && %sclaude "/pr-comments %s"' "$path" \
+  "${state:+PR_COMMENTS_WORKTREE_STATE=$state }" "$url"
+launch "$cmd"
