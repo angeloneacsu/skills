@@ -205,3 +205,17 @@ test_open_here_failure_does_not_notify() {
   [[ $rc -ne 0 ]] || return 1
   ! grep -q '^notify-send' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
 }
+
+test_open_terminal_gets_one_arg_script_that_runs() {
+  open_setup
+  echo 'REMOTE=vm' >> "$XDG_CONFIG_HOME/pr-comments/config"
+  "$OPEN" my-org/svc 12
+  local line f
+  line=$(grep -m1 '^gnome-terminal -- ' "$STUB_LOG")
+  f=${line#gnome-terminal -- }
+  [[ "$f" != *" "* && -x "$f" ]] || { echo "terminal args: $line"; return 1; }
+  : > "$STUB_LOG"
+  "$f"
+  grep -qx 'ssh -t vm .local/bin/pr-comments-open --here my-org/svc 12 ' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+  [[ ! -e "$f" ]] || { echo "launch script not removed"; return 1; }
+}

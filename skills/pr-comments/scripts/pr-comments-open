@@ -33,8 +33,15 @@ trap '[[ $BASHPID == "$PC_MAIN" ]] && fail "unexpected error (line $LINENO)"' ER
 
 launch() { # <shell command>; TERMINAL is intentionally word-split (command prefix)
   [[ $here -eq 1 ]] && exec bash -lc "$1"
+  # The terminal gets a single argument (a self-deleting script): some terminals
+  # (terminator -x via its running instance) re-split multi-word commands on spaces.
+  local dir="${XDG_RUNTIME_DIR:-/tmp}/pr-comments" f
+  mkdir -p "$dir"
+  f=$(mktemp "$dir/launch-XXXXXX")
+  printf '#!/usr/bin/env -S bash -l\nrm -f -- "$0"\n%s\n' "$1" > "$f"
+  chmod 700 "$f"
   # shellcheck disable=SC2086
-  exec $TERMINAL bash -lc "$1"
+  exec $TERMINAL "$f"
 }
 
 if [[ "${1:-}" == --fix-auth ]]; then

@@ -1,3 +1,7 @@
 #!/usr/bin/env bash
-# gnome-terminal stub: logs argv to $STUB_LOG; never executes the command.
+# gnome-terminal stub: logs argv to $STUB_LOG, plus the launch script's body when the
+# last argument is a file; never executes the command.
 echo "gnome-terminal $*" >> "${STUB_LOG:?}"
+f="${!#}"
+[[ -f "$f" ]] && sed 's/^/gnome-terminal | /' "$f" >> "$STUB_LOG"
+exit 0
