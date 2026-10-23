@@ -6,7 +6,7 @@ POLL="$PC_SCRIPTS_DIR/pr-comments-poll"
 # Fresh state + config + stubs on PATH. Sets STUB_LOG, GH_FIXTURE, SEEN, HANDLED, STATE.
 poll_setup() {
   STATE="$XDG_STATE_HOME/pr-comments"
-  rm -rf "$STATE" "$XDG_CONFIG_HOME/pr-comments"
+  rm -rf "$STATE" "$XDG_CONFIG_HOME/pr-comments" "$XDG_RUNTIME_DIR/pr-comments"
   mkdir -p "$STATE" "$XDG_CONFIG_HOME/pr-comments"
   echo 'ORGS=(my-org)' > "$XDG_CONFIG_HOME/pr-comments/config"
   SEEN="$STATE/seen" HANDLED="$STATE/handled"
@@ -92,9 +92,37 @@ test_poll_auth_stops_timer() {
   [[ -e "$STATE/auth-paused" ]] || return 1
   : > "$STUB_LOG"
   rc=0
-  "$POLL" 2>/dev/null || rc=$?
+  GH_AUTH_EXIT=1 "$POLL" 2>/dev/null || rc=$?
   [[ $rc -eq 3 ]] || { echo "rc2=$rc"; return 1; }
-  [[ ! -s "$STUB_LOG" ]] || { cat "$STUB_LOG"; return 1; }
+  [[ $(count_log '^systemd-run') == 0 && $(count_log '^systemctl') == 0 ]] || { cat "$STUB_LOG"; return 1; }
+}
+
+test_poll_paused_auth_ok_auto_resumes() {
+  poll_setup
+  touch "$STATE/auth-paused"
+  "$POLL" 2>/dev/null
+  [[ ! -e "$STATE/auth-paused" ]] || return 1
+  grep -qx 'systemctl --user start pr-comments.timer' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
+  [[ $(count_log '^systemd-run') == 1 ]] || { cat "$STUB_LOG"; return 1; }
+  [[ "$(sorted_seen)" == "C1 R1 T1" ]] || return 1
+}
+
+test_poll_paused_auth_bad_renotifies_once_per_boot() {
+  poll_setup
+  touch "$STATE/auth-paused"
+  local rc=0
+  GH_AUTH_EXIT=1 "$POLL" 2>/dev/null || rc=$?
+  [[ $rc -eq 3 ]] || { echo "rc=$rc"; return 1; }
+  [[ $(grep '^systemd-run' "$STUB_LOG" | grep -c -- 'pr-comments-notify --auth') == 1 ]] || { cat "$STUB_LOG"; return 1; }
+  [[ -e "$STATE/auth-paused" ]] || return 1
+  : > "$STUB_LOG"
+  rc=0
+  GH_AUTH_EXIT=1 "$POLL" 2>/dev/null || rc=$?
+  [[ $rc -eq 3 && $(count_log '^systemd-run') == 0 ]] || { cat "$STUB_LOG"; return 1; }
+  # a new boot clears the runtime dir -> notified again
+  rm -rf "$XDG_RUNTIME_DIR/pr-comments"
+  GH_AUTH_EXIT=1 "$POLL" 2>/dev/null || true
+  [[ $(count_log '^systemd-run') == 1 ]] || { cat "$STUB_LOG"; return 1; }
 }
 
 test_poll_network_error_no_stop() {

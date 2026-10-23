@@ -40,9 +40,28 @@ case "$mode" in
     systemctl --user start pr-comments.timer ;;
 esac
 
+# Once-per-boot marker (runtime dir is cleared on reboot) for the auth notification.
+RUN_DIR="${XDG_RUNTIME_DIR:-/run/user/$UID}/pr-comments"
+AUTH_MARKER="$RUN_DIR/auth-notified"
+notify_auth() {
+  if spawn_notify --auth "GitHub authentication failed; polling paused. Run: gh auth login"; then
+    mkdir -p "$RUN_DIR" 2>/dev/null && : > "$AUTH_MARKER" || true
+    return 0
+  fi
+  echo "pr-comments: failed to spawn auth notification" >&2
+  return 1
+}
+
 if [[ -e "$PC_AUTH" ]]; then
-  echo "pr-comments: paused after an auth error; run 'pr-comments-poll --resume' after 'gh auth login'" >&2
-  exit 3
+  if gh auth status >/dev/null 2>&1; then
+    # Logged in again (manually, or after reboot/re-login): auto-resume.
+    rm -f "$PC_AUTH" "$AUTH_MARKER"
+    systemctl --user start pr-comments.timer || true
+  else
+    echo "pr-comments: paused after an auth error; run 'gh auth login' (polling resumes automatically)" >&2
+    [[ -e "$AUTH_MARKER" ]] || notify_auth || true
+    exit 3
+  fi
 fi
 
 pc_load_config
@@ -63,10 +82,8 @@ gh_failed() {
     # Timer is always stopped. The flag is set only once the notification was
     # spawned; otherwise the next (manual) run retries the notification.
     if [[ ! -e "$PC_AUTH" ]]; then
-      if spawn_notify --auth "GitHub authentication failed; polling paused. Run: gh auth login"; then
+      if notify_auth; then
         : > "$PC_AUTH"
-      else
-        echo "pr-comments: failed to spawn auth notification" >&2
       fi
       systemctl --user stop pr-comments.timer
     fi

@@ -4,7 +4,7 @@
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PC_TESTS_DIR="$HERE" PC_SCRIPTS_DIR="$HERE/../scripts"
 PC_TMP=$(mktemp -d); trap 'rm -rf "$PC_TMP"' EXIT
-export XDG_CONFIG_HOME="$PC_TMP/config" XDG_STATE_HOME="$PC_TMP/state" HOME="$PC_TMP/home"
+export XDG_CONFIG_HOME="$PC_TMP/config" XDG_STATE_HOME="$PC_TMP/state" XDG_RUNTIME_DIR="$PC_TMP/run" HOME="$PC_TMP/home"
 fail=0 total=0
 for f in "$HERE"/test_*.sh; do
   [[ -e "$f" ]] || continue
