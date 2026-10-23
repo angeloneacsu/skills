@@ -53,24 +53,33 @@ errf="$(mktemp)"; trap 'rm -f "$errf"' EXIT
 gh_failed() {
   local msg; msg="$(tr '\n' ' ' < "$errf")"
   local auth=0
-  if grep -Eqi 'resolve host|network|timeout|timed out|dial tcp|connection|unreachable|EOF' "$errf"; then
-    auth=0   # connectivity problems are not auth problems (gh auth status fails offline too)
+  if grep -Eqi 'resolve host|network|timeout|timed out|dial tcp|connection|unreachable|EOF|HTTP 5[0-9][0-9]|rate limit|secondary rate' "$errf"; then
+    auth=0   # connectivity problems, 5xx and rate limits are not auth problems (gh auth status can fail during an outage too)
   elif grep -Eqi '401|Bad credentials|not logged|authentication' "$errf" \
        || ! gh auth status >/dev/null 2>&1; then
     auth=1
   fi
   if [[ $auth -eq 1 ]]; then
+    # Timer is always stopped. The flag is set only once the notification was
+    # spawned; otherwise the next (manual) run retries the notification.
     if [[ ! -e "$PC_AUTH" ]]; then
-      : > "$PC_AUTH"
-      spawn_notify --auth "GitHub authentication failed; polling paused. Run: gh auth login"
+      if spawn_notify --auth "GitHub authentication failed; polling paused. Run: gh auth login"; then
+        : > "$PC_AUTH"
+      else
+        echo "pr-comments: failed to spawn auth notification" >&2
+      fi
       systemctl --user stop pr-comments.timer
     fi
     echo "pr-comments: auth error: $msg" >&2
     exit 3
   fi
+  # Flag set only after a successful spawn, so a failed notify is retried next run.
   if [[ ! -e "$PC_ERROR" ]]; then
-    : > "$PC_ERROR"
-    spawn_notify --error "gh failed: ${msg:0:200}"
+    if spawn_notify --error "pr-comments: ${msg:0:200}"; then
+      : > "$PC_ERROR"
+    else
+      echo "pr-comments: failed to spawn error notification" >&2
+    fi
   fi
   echo "pr-comments: gh error: $msg" >&2
   exit 4
@@ -82,14 +91,18 @@ ignore=$(jq -nc '$ARGS.positional' --args "${IGNORE_AUTHORS[@]}")
 items=$(mktemp); trap 'rm -f "$errf" "$items"' EXIT
 for org in "${ORGS[@]}"; do
   resp=$(gh api graphql -F query=@"$QUERY" -f q="is:pr is:open author:@me org:$org" 2>"$errf") || gh_failed
+  if ! jq -e '.errors == null and (.data.search.nodes | type) == "array"' <<<"$resp" >/dev/null 2>&1; then
+    echo "invalid GraphQL response for org $org: $(jq -rc '.errors // empty' <<<"$resp" 2>/dev/null | head -c 200)" > "$errf"
+    gh_failed
+  fi
   pc_warn_truncated <<<"$resp"
   jq -c --arg me "$me" --argjson ignore "$ignore" \
     --slurpfile handled <(pc_handled_json "$PC_HANDLED") \
-    -f "$FILTER" <<<"$resp" >> "$items"
+    -f "$FILTER" <<<"$resp" >> "$items" 2>"$errf" || gh_failed
 done
 
 new=$(jq -c --slurpfile seen <(pc_handled_json "$PC_SEEN") \
-  'select(.id as $i | ($seen | index($i)) | not)' "$items")
+  'select(.id as $i | ($seen | index($i)) | not)' "$items" 2>"$errf") || gh_failed
 
 if [[ $dry -eq 1 ]]; then
   [[ -z "$new" ]] || jq -r '"\(.repo)#\(.number) \(.author) \(.kind) \(.url)"' <<<"$new"

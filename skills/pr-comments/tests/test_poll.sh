@@ -12,7 +12,7 @@ poll_setup() {
   SEEN="$STATE/seen" HANDLED="$STATE/handled"
   STUB_LOG=$(mktemp); export STUB_LOG
   GH_FIXTURE="$POLL_FIXTURE"; export GH_FIXTURE
-  unset GH_EXIT GH_STDERR GH_AUTH_EXIT GH_LOGIN
+  unset GH_EXIT GH_STDERR GH_AUTH_EXIT GH_LOGIN SYSTEMD_RUN_EXIT
   export PATH="$PC_TESTS_DIR/stubs:${PC_ORIG_PATH:=$PATH}"
 }
 count_log() { grep -c -- "$1" "$STUB_LOG" || true; }
@@ -127,4 +127,55 @@ test_poll_pagination_warning() {
   local err
   err=$("$POLL" 2>&1 >/dev/null)
   [[ "$err" == *"my-org/svc#12"* && "$err" == *"more than 100"* ]] || { echo "$err"; return 1; }
+}
+
+test_poll_graphql_errors_is_error() {
+  poll_setup
+  local f rc=0; f=$(mktemp)
+  echo '{"errors":[{"message":"x"}],"data":null}' > "$f"
+  GH_FIXTURE="$f" "$POLL" 2>/dev/null || rc=$?
+  rm -f "$f"
+  [[ $rc -eq 4 ]] || { echo "rc=$rc"; return 1; }
+  [[ $(count_log 'pr-comments-notify --error') == 1 ]] || { cat "$STUB_LOG"; return 1; }
+  [[ $(count_log '^systemctl') == 0 ]] || return 1
+}
+
+test_poll_malformed_body_is_error() {
+  poll_setup
+  local f rc=0; f=$(mktemp)
+  echo 'not json {' > "$f"
+  GH_FIXTURE="$f" "$POLL" 2>/dev/null || rc=$?
+  GH_FIXTURE="$f" "$POLL" 2>/dev/null || true
+  rm -f "$f"
+  [[ $rc -eq 4 ]] || { echo "rc=$rc"; return 1; }
+  [[ $(count_log 'pr-comments-notify --error') == 1 ]] || { cat "$STUB_LOG"; return 1; }
+}
+
+test_poll_5xx_not_auth() {
+  poll_setup
+  local rc=0
+  GH_EXIT=1 GH_STDERR="HTTP 502: Bad Gateway" GH_AUTH_EXIT=1 "$POLL" 2>/dev/null || rc=$?
+  [[ $rc -eq 4 ]] || { echo "rc=$rc"; return 1; }
+  [[ $(count_log '^systemctl') == 0 ]] || { cat "$STUB_LOG"; return 1; }
+}
+
+test_poll_failed_spawn_retries_error_notice() {
+  poll_setup
+  local rc=0
+  GH_EXIT=1 GH_STDERR="could not resolve host" SYSTEMD_RUN_EXIT=1 "$POLL" 2>/dev/null || rc=$?
+  [[ $rc -eq 4 ]] || return 1
+  [[ ! -e "$STATE/error-notified" ]] || return 1
+  : > "$STUB_LOG"
+  GH_EXIT=1 GH_STDERR="could not resolve host" "$POLL" 2>/dev/null || true
+  [[ $(count_log 'pr-comments-notify --error') == 1 ]] || { cat "$STUB_LOG"; return 1; }
+  [[ -e "$STATE/error-notified" ]]
+}
+
+test_poll_failed_spawn_auth_still_stops_timer() {
+  poll_setup
+  local rc=0
+  GH_EXIT=1 GH_STDERR="HTTP 401: Bad credentials" SYSTEMD_RUN_EXIT=1 "$POLL" 2>/dev/null || rc=$?
+  [[ $rc -eq 3 ]] || return 1
+  grep -qx 'systemctl --user stop pr-comments.timer' "$STUB_LOG" || return 1
+  [[ ! -e "$STATE/auth-paused" ]]
 }
