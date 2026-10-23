@@ -3,6 +3,9 @@
 INSTALL="$PC_SCRIPTS_DIR/pr-comments-install"
 
 install_setup() {
+  # Only ever delete inside the run.sh sandbox.
+  [[ -n "${PC_TMP:-}" && "$HOME" == "$PC_TMP"/* && "$XDG_CONFIG_HOME" == "$PC_TMP"/* && "$XDG_STATE_HOME" == "$PC_TMP"/* ]] \
+    || { echo "install_setup: HOME/XDG not under PC_TMP sandbox; refusing to rm" >&2; return 1; }
   rm -rf "$HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
   mkdir -p "$HOME"
   STUB_LOG=$(mktemp); export STUB_LOG
@@ -86,4 +89,25 @@ test_installed_scripts_resolve_lib() {
   "$INSTALL" >/dev/null
   # installed notify/open must find lib.sh in the share dir (not next to themselves)
   "$HOME/.local/bin/pr-comments-open" bad-usage 2>&1 | grep -q 'usage: pr-comments-open' || return 1
+}
+
+test_install_rejects_invalid_calendar() {
+  install_setup
+  command -v systemd-analyze >/dev/null || { echo "skip: no systemd-analyze"; return 0; }
+  mkdir -p "$(dirname "$CONF")"
+  printf 'ORGS=(x)\nACTIVE_DAYS="Mon-Fri"\nACTIVE_HOURS="08:00-19:00"\n' > "$CONF"
+  rc=0; err=$("$INSTALL" 2>&1 >/dev/null) || rc=$?
+  [[ $rc -ne 0 ]] || return 1
+  grep -q 'ACTIVE_DAYS' <<<"$err" && grep -q 'OnCalendar' <<<"$err" || { echo "$err"; return 1; }
+  [[ ! -e "$HOME/.local" && ! -e "$UNITS" ]] || return 1
+  [[ ! -s "$STUB_LOG" ]] || { cat "$STUB_LOG"; return 1; }
+}
+
+test_install_rejects_bad_interval() {
+  install_setup
+  mkdir -p "$(dirname "$CONF")"
+  printf 'ORGS=(x)\nINTERVAL_MIN=abc\n' > "$CONF"
+  rc=0; err=$("$INSTALL" 2>&1 >/dev/null) || rc=$?
+  [[ $rc -ne 0 ]] && grep -q 'INTERVAL_MIN' <<<"$err" || { echo "$err"; return 1; }
+  [[ ! -e "$HOME/.local" && ! -s "$STUB_LOG" ]] || return 1
 }

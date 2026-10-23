@@ -24,14 +24,11 @@ case "${1:-}" in
   *) echo "usage: pr-comments-install [--uninstall]" >&2; exit 64 ;;
 esac
 
-mkdir -p "$BIN" "$SHARE" "$UNITS"
-for s in "${SCRIPTS[@]}"; do install -m 755 "$SRC/$s" "$BIN/$s"; done
-for h in "${HELPERS[@]}"; do install -m 644 "$SRC/$h" "$SHARE/$h"; done
-
 # shellcheck disable=SC1091
 source "$SRC/lib.sh"
 conf="$(pc_config_file)"
 if [[ ! -f "$conf" ]]; then
+  # Needed to load defaults; kept even if validation below fails.
   mkdir -p "$(dirname "$conf")"
   cp "$SKILL/config.example" "$conf"
   echo "created $conf: edit $conf (set ORGS, CLONE_ROOTS, ...), then run: systemctl --user restart pr-comments.timer"
@@ -39,6 +36,20 @@ fi
 pc_load_config
 
 oncal="$ACTIVE_DAYS *-*-* ${ACTIVE_HOURS}:00/${INTERVAL_MIN}:00"
+
+# Validate before writing anything.
+if [[ ! "$INTERVAL_MIN" =~ ^[1-9][0-9]*$ ]]; then
+  echo "pr-comments-install: INTERVAL_MIN must be a positive integer, got '$INTERVAL_MIN' (in $conf); nothing installed" >&2
+  exit 65
+fi
+if command -v systemd-analyze >/dev/null 2>&1 && ! systemd-analyze calendar "$oncal" >/dev/null 2>&1; then
+  echo "pr-comments-install: invalid OnCalendar '$oncal' from ACTIVE_DAYS='$ACTIVE_DAYS' / ACTIVE_HOURS='$ACTIVE_HOURS' / INTERVAL_MIN='$INTERVAL_MIN' (in $conf); use systemd syntax like Mon..Fri and 08..18; nothing installed" >&2
+  exit 65
+fi
+
+mkdir -p "$BIN" "$SHARE" "$UNITS"
+for s in "${SCRIPTS[@]}"; do install -m 755 "$SRC/$s" "$BIN/$s"; done
+for h in "${HELPERS[@]}"; do install -m 644 "$SRC/$h" "$SHARE/$h"; done
 
 # Unit-file escaping for the PATH value: backslash, double quote, then % -> %%.
 p="$PATH"
