@@ -35,9 +35,17 @@ launch() { # <shell command>; TERMINAL is intentionally word-split (command pref
   [[ $here -eq 1 ]] && exec bash -lc "$1"
   # The terminal gets a single argument (a self-deleting script): some terminals
   # (terminator -x via its running instance) re-split multi-word commands on spaces.
-  local dir="${XDG_RUNTIME_DIR:-/tmp}/pr-comments" f
-  mkdir -p "$dir"
-  f=$(mktemp "$dir/launch-XXXXXX")
+  # The directory must be ours and private: never a shared, predictable path in /tmp.
+  local dir f
+  if [[ -n "${XDG_RUNTIME_DIR:-}" && -d "$XDG_RUNTIME_DIR" && -O "$XDG_RUNTIME_DIR" ]]; then
+    dir="$XDG_RUNTIME_DIR/pr-comments"
+    (umask 077; mkdir -p "$dir")
+    [[ -O "$dir" && ! -L "$dir" ]] || fail "unsafe launch directory $dir"
+    chmod 700 "$dir"
+  else
+    dir=$(mktemp -d "${TMPDIR:-/tmp}/pr-comments.XXXXXX")
+  fi
+  f=$(umask 077; mktemp "$dir/launch-XXXXXX")
   printf '#!/usr/bin/env -S bash -l\nrm -f -- "$0"\n%s\n' "$1" > "$f"
   chmod 700 "$f"
   # shellcheck disable=SC2086
