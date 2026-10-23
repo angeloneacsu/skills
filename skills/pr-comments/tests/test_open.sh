@@ -52,7 +52,7 @@ test_open_launches_terminal() {
   open_setup
   "$OPEN" my-org/svc 12
   grep '^gnome-terminal' "$STUB_LOG" | grep -q -- "cd $WT/svc-pr-12" || { cat "$STUB_LOG"; return 1; }
-  grep '^gnome-terminal' "$STUB_LOG" | grep -q -- '/angelo-skills:pr-comments https://github.com/my-org/svc/pull/12' || { cat "$STUB_LOG"; return 1; }
+  grep '^gnome-terminal' "$STUB_LOG" | grep -qF -- '/angelo-skills:pr-comments\ https://github.com/my-org/svc/pull/12' || { cat "$STUB_LOG"; return 1; }
   ! grep -q 'PR_COMMENTS_WORKTREE_STATE' "$STUB_LOG" || return 1
 }
 
@@ -96,7 +96,7 @@ test_open_fork_rejected() {
 test_open_fix_auth() {
   open_setup
   "$OPEN" --fix-auth
-  grep '^gnome-terminal' "$STUB_LOG" | grep -q -- '/angelo-skills:pr-comments --fix-auth' || { cat "$STUB_LOG"; return 1; }
+  grep '^gnome-terminal' "$STUB_LOG" | grep -qF -- '/angelo-skills:pr-comments\ --fix-auth' || { cat "$STUB_LOG"; return 1; }
   grep '^gnome-terminal' "$STUB_LOG" | grep -q -- "cd $HOME" || { cat "$STUB_LOG"; return 1; }
 }
 
@@ -218,4 +218,12 @@ test_open_terminal_gets_one_arg_script_that_runs() {
   "$f"
   grep -qx 'ssh -t vm .local/bin/pr-comments-open --here my-org/svc 12 ' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
   [[ ! -e "$f" ]] || { echo "launch script not removed"; return 1; }
+}
+
+test_open_custom_skill_command() {
+  open_setup
+  echo 'SKILL_CMD=/pr-comments' >> "$XDG_CONFIG_HOME/pr-comments/config"
+  "$OPEN" my-org/svc 12
+  grep '^gnome-terminal' "$STUB_LOG" | grep -qF 'claude /pr-comments\ https://github.com/my-org/svc/pull/12' || { cat "$STUB_LOG"; return 1; }
+  ! grep -q 'angelo-skills:' "$STUB_LOG" || { cat "$STUB_LOG"; return 1; }
 }

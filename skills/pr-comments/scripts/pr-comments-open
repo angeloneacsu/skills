@@ -74,7 +74,7 @@ if [[ -n "$REMOTE" && $here -eq 0 ]]; then
 fi
 
 if [[ "${args[0]}" == --fix-auth ]]; then
-  printf -v cmd 'cd %q && claude "/angelo-skills:pr-comments --fix-auth"' "$HOME"
+  printf -v cmd 'cd %q && claude %q' "$HOME" "$SKILL_CMD --fix-auth"
   launch "$cmd"
 fi
 
@@ -138,6 +138,6 @@ if [[ -z "$state" ]]; then
 fi
 
 # 4. Open the terminal.
-printf -v cmd 'cd %q && %sclaude "/angelo-skills:pr-comments %s"' "$path" \
-  "${state:+PR_COMMENTS_WORKTREE_STATE=$state }" "$url"
+printf -v cmd 'cd %q && %sclaude %q' "$path" \
+  "${state:+PR_COMMENTS_WORKTREE_STATE=$state }" "$SKILL_CMD $url"
 launch "$cmd"

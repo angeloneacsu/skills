@@ -20,6 +20,10 @@ IGNORE_AUTHORS=(some-noisy-login)
 # (konsole -e, terminator -x, gnome-terminal --).
 TERMINAL="gnome-terminal --"
 
+# Slash command the session starts with: the plugin form, or "/pr-comments" when the
+# skill is installed as a user skill (~/.claude/skills/pr-comments).
+SKILL_CMD="/angelo-skills:pr-comments"
+
 # Poll interval in minutes.
 INTERVAL_MIN=5
 
