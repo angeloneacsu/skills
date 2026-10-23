@@ -98,3 +98,34 @@ test_open_fix_auth() {
   grep '^gnome-terminal' "$STUB_LOG" | grep -q -- '/pr-comments --fix-auth' || { cat "$STUB_LOG"; return 1; }
   grep '^gnome-terminal' "$STUB_LOG" | grep -q -- "cd $HOME" || { cat "$STUB_LOG"; return 1; }
 }
+
+test_open_ignores_linked_worktree_as_clone() {
+  open_setup
+  mkdir -p "$T/roots/zzz"; mv "$CLONE" "$T/roots/zzz/svc"; CLONE="$T/roots/zzz/svc"
+  sed -i "s#^WORKTREE_DIR=.*#WORKTREE_DIR=\"$T/roots\"#" "$XDG_CONFIG_HOME/pr-comments/config"
+  git -C "$CLONE" worktree add -q --detach "$T/roots/svc-pr-12" origin/main
+  "$OPEN" my-org/svc 12
+  [[ ! -e "$T/roots/svc-pr-12-pr-12" ]] || return 1
+  [[ $(git -C "$T/roots/svc-pr-12" rev-parse HEAD) == $(git -C "$CLONE" rev-parse origin/feature/x) ]] || return 1
+}
+
+test_open_keeps_leftover_with_unpushed_commit() {
+  open_setup
+  mkdir -p "$WT"
+  git -C "$CLONE" worktree add -q --detach "$WT/svc-pr-12" origin/feature/x
+  git -C "$WT/svc-pr-12" commit -q --allow-empty -m local
+  local c; c=$(git -C "$WT/svc-pr-12" rev-parse HEAD)
+  "$OPEN" my-org/svc 12
+  [[ $(git -C "$WT/svc-pr-12" rev-parse HEAD) == "$c" ]] || return 1
+  grep '^gnome-terminal' "$STUB_LOG" | grep -q 'PR_COMMENTS_WORKTREE_STATE=kept-dirty' || { cat "$STUB_LOG"; return 1; }
+}
+
+test_open_pr_view_failure_notifies() {
+  open_setup
+  export GH_EXIT=1 GH_STDERR="could not resolve host"
+  local rc=0
+  "$OPEN" my-org/svc 12 2>/dev/null || rc=$?
+  [[ $rc -ne 0 ]] || return 1
+  [[ $(grep -c '^notify-send .*my-org/svc#12' "$STUB_LOG") == 1 ]] || { cat "$STUB_LOG"; return 1; }
+  ! grep -q '^gnome-terminal' "$STUB_LOG" || return 1
+}
