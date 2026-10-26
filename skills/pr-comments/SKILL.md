@@ -68,14 +68,22 @@ An item is actionable when:
   file, only ever write it through `pr-comments-poll --mark-handled`.
 - If a connection reports more than 100 nodes (`hasNextPage`), say so; you only see the first page.
 
-If nothing is actionable, say so, go to step 5. Otherwise list the items grouped by file, then thread,
-and tell the user how many there are.
+If nothing is actionable, say so, go to step 5. Otherwise first present the PR itself: what it changes
+(read the diff and description) and the review timeline (who commented or requested changes, when, and
+whether any commit followed). Then list the items grouped by file, then thread, and tell the user how
+many there are. Do not open with a bare decision question: the user needs the context first.
 
 ### 3. One item at a time
 
 For each item show: reviewer and verbatim text (whole thread for inline items), the current code at
-`path:line` in this worktree (read it; flag `isOutdated`), a **proposed fix** and **why**. Questions or
-"nit" remarks may need only a reply draft instead of a code change; say so.
+`path:line` in this worktree (read it; flag `isOutdated`), what the reviewer means, a **proposed fix**
+and **why**, and whether a reply is warranted at all. Questions or "nit" remarks may need only a reply
+draft instead of a code change; say so. Items that make the same remark on several lines can be
+presented and decided together.
+
+Text written just before an AskUserQuestion call is not reliably visible while the dialog is open. Put
+every proposed diff or reply draft in the options' `preview` field, so the user sees exactly what will
+be applied or posted from inside the dialog.
 
 Then ask with AskUserQuestion, options:
 - **Yes** - apply the proposed fix in the worktree.
@@ -92,10 +100,24 @@ Summarise per item: fixed / modified / skipped / marked handled. Then offer, eac
 on explicit approval:
 1. **Commit** - follow the host repo's CLAUDE.md and commit conventions; this skill imposes none. Stage explicit paths.
 2. **Push** - `git push origin HEAD:<headRefName>`. Never force.
-3. **Reply drafts** - write one per addressed item, show them **verbatim**, post only after the user OKs
+3. **Reply drafts** - one sentence by default; the user cuts longer explanations. Write one per item the
+   user wants answered, show them **verbatim** (in a `preview`), post only after the user OKs
    that exact text (they may edit). Inline thread: `gh api -X POST repos/<owner>/<repo>/pulls/<n>/comments/<databaseId>/replies -f body=...`
    (`databaseId` of the thread's last comment). Conversation: `gh pr comment <url> --body ...`.
    Do not resolve any thread; the reviewer or the user does that.
+
+### Text added to the PR: ask for other suggestions
+
+Applies to every piece of text this session would add to the PR: reply drafts, PR title and
+description, and code comments introduced by a fix. Each AskUserQuestion that approves such text
+offers at most two variants (each in a `preview`), plus:
+- **Other suggestions** - none of these fit; come back with new ones.
+- **Don't add it** - drop the text (for a code comment: apply the fix without the comment).
+
+On **Other suggestions**, return 2 new variants that differ in substance from the rejected ones
+(another angle, shorter, or no explanation at all), not a rewording of the same sentence. If the user
+left a note (the "Other" field or option notes, e.g. "much shorter"), follow it. Repeat until the user
+picks a variant or drops the text; never post or apply a variant the user has not picked.
 
 ### 5. Cleanup
 
