@@ -17,7 +17,7 @@ Default to saving **nothing**. Make each item earn its place.
 | Mode | When | Scope |
 |---|---|---|
 | **Self-harvest** | Mid-task, on your own initiative, at a trigger below | The one lesson that just happened |
-| **Full harvest** | The user asks, or the session is ending | The whole session, Phases 1–5 |
+| **Full harvest** | The user asks, or the session is ending | The whole session, Phases 0–5 |
 | **Audit** | Argument `audit`, or the user asks to clean the memory | What is already stored |
 
 ### Self-harvest — capture at the moment, not at the end
@@ -50,6 +50,16 @@ sharpen that file instead of adding another.
 
 A full harvest later in the session treats what self-harvest already wrote as stored (filter
 question 4) and reports it under "saved" so the user sees one complete list.
+
+## Phase 0 — Project state into the tracker (projects that use beads)
+
+*(Full harvest only. Self-harvest and audit skip it.)*
+
+When the project uses beads (`.beads/` at its root), first follow the `session-to-beads` skill of
+this pack: what was read and done in the session goes to `bd` as bead comments, new beads and
+`bd remember` entries. Skip it when the caller says it already ran in this session, and when the
+project has no beads. The "default to saving nothing" filter applies to the lessons of Phases 1–4,
+not to this phase: project state that was read or changed is recorded, not weighed.
 
 ## Phase 1 — Enumerate candidates
 
@@ -148,6 +158,7 @@ context for.
 
 Tell the user, briefly:
 
+- when Phase 0 ran: what went to the tracker, per bead, first
 - what you saved and to where, with the one-line reason each earned its place
 - **what you considered and deliberately did not save, and why**
 
